@@ -46,6 +46,7 @@ struct editorConfig {
   int numRows;
   int rowOffset;
   int colOffset;
+  char *filename;
   editorRow *row;
   struct termios ogTermios;
 };
@@ -128,6 +129,9 @@ void editorAddRow(char *line) {
 }
 
 void editorOpen(char *filename) {
+  free(ec.filename);
+  ec.filename = strdup(filename);
+
   FILE *fp = fopen(filename, "r");
   if (!fp) die("fopen");
   char *line = NULL;
@@ -173,10 +177,21 @@ void editorDrawRows(struct abuf *ab) {
     // clear from cursor to end of line
     abAppend(ab, "\x1b[K", 3);
     // clear line
-    if (y < ec.screenRows - 1) {
-      abAppend(ab, "\r\n", 2);
-    }
+    abAppend(ab, "\r\n", 2);
   }
+}
+
+void editorDrawStatusBar(struct abuf *ab) {
+  abAppend(ab, "\x1b[7m", 4);
+  char status[80];
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines", ec.filename ? ec.filename : "[No Name]", ec.numRows);
+  abAppend(ab, status, len);
+  if (len > ec.screenCols) len = ec.screenCols;
+  while (len < ec.screenCols) {
+    abAppend(ab, " ", 1);
+    len++;
+  }
+  abAppend(ab, "\x1b[m", 3);
 }
 
 void editorScroll() {
@@ -220,6 +235,7 @@ void editorRefreshScreen() {
   abAppend(&ab, "\x1b[H", 3);
 
   editorDrawRows(&ab);
+  editorDrawStatusBar(&ab);
 
   // position cursor to actual cursor position
   char buf[32];
@@ -410,6 +426,13 @@ int getWindowSize(int *rows, int *cols) {
   }
 }
 
+void refreshWindowSize() {
+  if (getWindowSize(&ec.screenRows, &ec.screenCols) == -1)
+    die("getWindowSize");
+  // setup offset for bottom bar
+  ec.screenRows -= 1;
+}
+
 void initEditor() {
   ec.cx = 0;
   ec.cy = 0;
@@ -417,8 +440,8 @@ void initEditor() {
   ec.numRows = 0;
   ec.rowOffset = 0;
   ec.colOffset = 0;
-  if (getWindowSize(&ec.screenRows, &ec.screenCols) == -1)
-    die("getWindowSize");
+  ec.filename = NULL;
+  refreshWindowSize();
 }
 
 void editorProcessKeypress() {
@@ -506,9 +529,7 @@ int main(int argc, char *argv[]) {
 
   while (1) {
 
-    if (getWindowSize(&ec.screenRows, &ec.screenCols) == -1)
-      die("getWindowSize");
-
+    refreshWindowSize();
     editorRefreshScreen();
     editorProcessKeypress();
   }
