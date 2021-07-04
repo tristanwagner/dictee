@@ -12,6 +12,8 @@
 #define VERSION "0.0.1"
 // https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
 
+#define TAB_SIZE 2
+
 int getWindowSize(int *, int *);
 void die(const char *);
 
@@ -32,10 +34,13 @@ enum editorKeys {
 typedef struct editorRow {
   char *chars;
   int size;
+  char *render;
+  int rsize;
 } editorRow;
 
 struct editorConfig {
   int cx, cy;
+  int rx, ry;
   int screenCols;
   int screenRows;
   int numRows;
@@ -68,6 +73,18 @@ void abAppend(struct abuf *ab, const char *s, int len) {
 
 void abFree(struct abuf *ab) { free(ab->b); }
 
+int editorRowCxToRx(editorRow *row, int cx) {
+  int rx = 0;
+  int j;
+  for (j = 0; j < cx; j++) {
+    if (row->chars[j] == '\t')
+      rx += (TAB_SIZE - 1) - (rx % TAB_SIZE);
+    rx++;
+  }
+
+  return rx;
+}
+
 void updateRow(editorRow *row, char *line) {
   row->size = strlen(line);
   while (row->size > 0 && (line[row->size - 1] == '\n' ||
@@ -76,15 +93,39 @@ void updateRow(editorRow *row, char *line) {
   row->chars = malloc(row->size + 1);
 
   memcpy(row->chars, line, row->size);
-  row->chars[row->size+1] = '\0';
+  row->chars[row->size] = '\0';
+
+  int j;
+  int idx = 0;
+
+  // suport tabs
+  int tabs = 0;
+  for (j = 0; j < row->size; j++) 
+    if (row->chars[j] == '\t') tabs++;
+
+  free(row->render);
+  row->render = malloc(row->size + tabs * (TAB_SIZE - 1) + 1);
+
+  for (j = 0; j < row->size; j++) {
+    if (row->chars[j] == '\t') {
+    
+      row->render[idx++] = ' ';
+      while (idx % TAB_SIZE != 0) row->render[idx++] = ' ';
+    } else {
+      row->render[idx++] = row->chars[j];
+    }
+  }
+
+  row->render[idx] = '\0';
+  row->rsize = idx;
 }
 
-void editorAddRow(char *line, int linelen) {
+void editorAddRow(char *line) {
   // realloc a new row
   ec.row = realloc(ec.row, sizeof(editorRow) * (ec.numRows + 1));
   updateRow(&ec.row[ec.numRows], line);
   ec.numRows++;
-};
+}
 
 void editorOpen(char *filename) {
   FILE *fp = fopen(filename, "r");
@@ -94,7 +135,7 @@ void editorOpen(char *filename) {
   ssize_t linelen;
 
   while((linelen = getline(&line, &linecap, fp)) != -1) {
-    editorAddRow(line, linelen);
+    editorAddRow(line);
   }
 
   free(line);
@@ -124,10 +165,10 @@ void editorDrawRows(struct abuf *ab) {
         abAppend(ab, "~", 1);
       }
     } else {
-      int len = ec.row[fileRow].size - ec.colOffset;
+      int len = ec.row[fileRow].rsize - ec.colOffset;
       len = len < 0 ? 0 : len;
       len = len > ec.screenCols ? ec.screenCols : len;
-      abAppend(ab, &ec.row[fileRow].chars[ec.colOffset], len);
+      abAppend(ab, &ec.row[fileRow].render[ec.colOffset], len);
     }
     // clear from cursor to end of line
     abAppend(ab, "\x1b[K", 3);
@@ -139,6 +180,12 @@ void editorDrawRows(struct abuf *ab) {
 }
 
 void editorScroll() {
+  ec.rx = 0;
+
+  if (ec.cy  < ec.numRows) {
+    ec.rx = editorRowCxToRx(&ec.row[ec.cy], ec.cx);
+  }
+
   // scroll back
   if (ec.cy < ec.rowOffset) {
     ec.rowOffset = ec.cy;
@@ -149,12 +196,12 @@ void editorScroll() {
     ec.rowOffset = ec.cy - ec.screenRows + 1;
   }
 
-  if (ec.cx < ec.colOffset) {
-    ec.colOffset = ec.cx;
+  if (ec.rx < ec.colOffset) {
+    ec.colOffset = ec.rx;
   }
 
-  if (ec.cx >= ec.colOffset + ec.screenCols) {
-    ec.colOffset = ec.cx - ec.screenCols + 1;
+  if (ec.rx >= ec.colOffset + ec.screenCols) {
+    ec.colOffset = ec.rx - ec.screenCols + 1;
   }
 }
 
@@ -176,7 +223,7 @@ void editorRefreshScreen() {
 
   // position cursor to actual cursor position
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (ec.cy - ec.rowOffset) + 1, (ec.cx - ec.colOffset) + 1);
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (ec.cy - ec.rowOffset) + 1, (ec.rx - ec.colOffset) + 1);
   abAppend(&ab, buf, strlen(buf));
 
   // show cursor
@@ -311,7 +358,8 @@ void editorMoveCursor(int key) {
       break;
     case MOVE_CURSOR_END:
     case END_KEY:
-      ec.cx = ec.screenCols - 1;
+      if (ec.cy < ec.numRows)
+        ec.cx = ec.row[ec.cy].size;
       break;
   }
 
@@ -365,6 +413,7 @@ int getWindowSize(int *rows, int *cols) {
 void initEditor() {
   ec.cx = 0;
   ec.cy = 0;
+  ec.rx = 0;
   ec.numRows = 0;
   ec.rowOffset = 0;
   ec.colOffset = 0;
@@ -388,6 +437,12 @@ void editorProcessKeypress() {
       break;
     case PAGE_UP:
     case PAGE_DOWN: {
+                      if (c == PAGE_UP) {
+                        ec.cy = ec.rowOffset;
+                      } else if (c == PAGE_DOWN) {
+                        ec.cy = ec.rowOffset + ec.screenRows - 1;
+                        if (ec.cy > ec.numRows) ec.cy = ec.numRows;
+                      }
                       int times = ec.screenRows;
                       while (times--)
                         editorMoveCursor(c == PAGE_UP ? MOVE_CURSOR_UP : MOVE_CURSOR_DOWN);
