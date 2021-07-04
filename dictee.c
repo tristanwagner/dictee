@@ -1,7 +1,9 @@
 #include <ctype.h>
+#include <time.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
@@ -46,8 +48,10 @@ struct editorConfig {
   int numRows;
   int rowOffset;
   int colOffset;
-  char *filename;
   editorRow *row;
+  char *filename;
+  char statusmsg[80];
+  time_t statusmsg_time;
   struct termios ogTermios;
 };
 
@@ -183,15 +187,38 @@ void editorDrawRows(struct abuf *ab) {
 
 void editorDrawStatusBar(struct abuf *ab) {
   abAppend(ab, "\x1b[7m", 4);
-  char status[80];
+  char status[80], rstatus[80];
   int len = snprintf(status, sizeof(status), "%.20s - %d lines", ec.filename ? ec.filename : "[No Name]", ec.numRows);
-  abAppend(ab, status, len);
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d", ec.cy + 1, ec.numRows);
   if (len > ec.screenCols) len = ec.screenCols;
+  abAppend(ab, status, len);
   while (len < ec.screenCols) {
-    abAppend(ab, " ", 1);
-    len++;
+    if (ec.screenCols - len == rlen) {
+      abAppend(ab, rstatus, rlen);
+      break;
+    } else {
+      abAppend(ab, " ", 1);
+      len++;
+    }
   }
   abAppend(ab, "\x1b[m", 3);
+  abAppend(ab, "\r\n", 2);
+}
+
+void editorDrawMessageBar(struct abuf *ab) {
+  abAppend(ab, "\x1b[K", 3);
+  int msglen = strlen(ec.statusmsg);
+  if (msglen > ec.screenCols) strlen(ec.statusmsg);
+  if (msglen && time(NULL) - ec.statusmsg_time < 5)
+    abAppend(ab, ec.statusmsg, msglen);
+}
+
+void editorSetStatusMessage(const char *fmt, ...) {
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(ec.statusmsg, sizeof(ec.statusmsg), fmt, ap);
+  va_end(ap);
+  ec.statusmsg_time = time(NULL);
 }
 
 void editorScroll() {
@@ -236,6 +263,7 @@ void editorRefreshScreen() {
 
   editorDrawRows(&ab);
   editorDrawStatusBar(&ab);
+  editorDrawMessageBar(&ab);
 
   // position cursor to actual cursor position
   char buf[32];
@@ -429,8 +457,8 @@ int getWindowSize(int *rows, int *cols) {
 void refreshWindowSize() {
   if (getWindowSize(&ec.screenRows, &ec.screenCols) == -1)
     die("getWindowSize");
-  // setup offset for bottom bar
-  ec.screenRows -= 1;
+  // setup offset for bottom bars
+  ec.screenRows -= 2;
 }
 
 void initEditor() {
@@ -441,6 +469,8 @@ void initEditor() {
   ec.rowOffset = 0;
   ec.colOffset = 0;
   ec.filename = NULL;
+  ec.statusmsg[0] = '\0';
+  ec.statusmsg_time = 0;
   refreshWindowSize();
 }
 
@@ -526,6 +556,8 @@ int main(int argc, char *argv[]) {
   if (argc >= 2) {
     editorOpen(argv[1]);
   }
+
+  editorSetStatusMessage("Hit Ctrl-Q to quit");
 
   while (1) {
 
