@@ -83,8 +83,9 @@ void editorRowDeleteChar(editorRow *row, int at);
 void editorSetStatusMessage(const char *fmt, ...);
 char *editorRowsToString(int *len);
 void editorRowAppendString(editorRow *row, char *s, size_t len);
-void editorMoveCursor(int key);
+void editorMoveCursor(int key, int times);
 void editorSave();
+int editorConfirm();
 void editorRefreshScreen();
 char *editorPrompt(char *prompt);
 
@@ -124,6 +125,8 @@ char *editorPrompt(char *prompt) {
       if (buflen != 0) {
         editorSetStatusMessage("");
         return buf;
+      } else {
+        return NULL;
       }
     } else if (!iscntrl(c) && c < 128) {
       if (buflen == bufsize - 1) {
@@ -136,10 +139,19 @@ char *editorPrompt(char *prompt) {
   }
 }
 
+int editorConfirm() {
+  char *response = editorPrompt("Are you sure ? [Y/n] : %s");
+  if (response == NULL || response[0] == 'y' || response[0] == 'Y') {
+    return 1;
+  }
+  return 0;
+}
+
 void editorSave() {
   if (ec.filename == NULL) {
     ec.filename = editorPrompt("Save as: %s (ESC to cancel)");
-    if (ec.filename == NULL) {
+    if (ec.filename == NULL || editorConfirm() != 1) {
+      ec.filename = NULL;
       editorSetStatusMessage("Save aborted");
       return;
     }
@@ -551,6 +563,9 @@ int editorReadKey() {
             return HOME_KEY;
           case '8':
             return END_KEY;
+          default:
+            editorSetStatusMessage("unknown [~ sequence %s", seq);
+            break;
           }
         }
 
@@ -564,6 +579,13 @@ int editorReadKey() {
           return MOVE_CURSOR_RIGHT;
         case 'D':
           return MOVE_CURSOR_LEFT;
+        case 'H':
+          return HOME_KEY;
+        case 'F':
+          return END_KEY;
+        default:
+          editorSetStatusMessage("unknown [ sequence %s", seq);
+          break;
         }
       }
     } else if (seq[0] == 'O') {
@@ -572,6 +594,9 @@ int editorReadKey() {
         return HOME_KEY;
       case 'F':
         return END_KEY;
+      default:
+        editorSetStatusMessage("unknown O sequence %s", seq);
+        break;
       }
     }
     return '\x1b';
@@ -594,48 +619,49 @@ int editorReadKey() {
   }
 }
 
-void editorMoveCursor(int key) {
+void editorMoveCursor(int key, int times) {
   editorRow *row = ec.cy >= ec.numRows ? NULL : &ec.row[ec.cy];
-  switch (key) {
-  case MOVE_CURSOR_UP:
-    if (ec.cy > 0) {
-      ec.cy--;
-    }
-    break;
-  case MOVE_CURSOR_DOWN:
-    if (ec.cy < ec.numRows) {
-      ec.cy++;
-    }
-    break;
-  case MOVE_CURSOR_LEFT:
-    if (ec.cx > 0) {
-      ec.cx--;
-    } else if (ec.cy > 0) {
-      ec.cy--;
-      ec.cx = ec.row[ec.cy].size;
-    }
-    break;
-  case MOVE_CURSOR_RIGHT:
-    if (row && ec.cx < row->size) {
-      ec.cx++;
-    } else if (row && ec.cx == row->size) {
-      ec.cy++;
+  while (times--) {
+    switch (key) {
+    case MOVE_CURSOR_UP:
+      if (ec.cy > 0) {
+        ec.cy--;
+      }
+      break;
+    case MOVE_CURSOR_DOWN:
+      if (ec.cy + 1 < ec.numRows) {
+        ec.cy++;
+      }
+      break;
+    case MOVE_CURSOR_LEFT:
+      if (ec.cx > 0) {
+        ec.cx--;
+      } else if (ec.cy > 0) {
+        ec.cy--;
+        ec.cx = ec.row[ec.cy].size;
+      }
+      break;
+    case MOVE_CURSOR_RIGHT:
+      if (row && ec.cx < row->size) {
+        ec.cx++;
+      } else if (row && ec.cx == row->size) {
+        ec.cy++;
+        ec.cx = 0;
+      }
+      break;
+    case MOVE_CURSOR_START:
+    case HOME_KEY:
       ec.cx = 0;
-    }
-    break;
-  case MOVE_CURSOR_START:
-  case HOME_KEY:
-    ec.cx = 0;
-    break;
-  case MOVE_CURSOR_END:
-  case END_KEY:
-    if (ec.cy < ec.numRows)
+      break;
+    case MOVE_CURSOR_END:
+    case END_KEY:
       ec.cx = ec.row[ec.cy].size;
-    break;
+      break;
+    }
   }
+  row = ec.cy > ec.numRows ? NULL : &ec.row[ec.cy];
 
-  row = ec.cy >= ec.numRows ? NULL : &ec.row[ec.cy];
-  int rowLen = row ? row->size : 0;
+  int rowLen = row ? row->size : 1;
   if (ec.cx > rowLen) {
     ec.cx = rowLen;
   }
@@ -704,7 +730,7 @@ void initEditor() {
 
 void editorProcessKeypress() {
   int c = editorReadKey();
-  editorSetStatusMessage("Key %02x pressed", c);
+  /* editorSetStatusMessage("Key %02x pressed", c); */
   // ignore weird chars
   /* if (c != 0x1B && c < 0x20) { */
   /* } */
@@ -723,7 +749,7 @@ void editorProcessKeypress() {
   case DEL_KEY:
   case CTRL_KEY('h'):
     if (c == DEL_KEY)
-      editorMoveCursor(MOVE_CURSOR_RIGHT);
+      editorMoveCursor(MOVE_CURSOR_RIGHT, 1);
     editorDelChar();
     break;
   case CTRL_KEY('l'):
@@ -741,24 +767,22 @@ void editorProcessKeypress() {
   case MOVE_CURSOR_RIGHT:
   case MOVE_CURSOR_START:
   case MOVE_CURSOR_END:
-    editorMoveCursor(c);
+    editorMoveCursor(c, 1);
     break;
-  case PAGE_UP:
-  case PAGE_DOWN: {
-    if (c == PAGE_UP) {
-      ec.cy = ec.rowOffset;
-    } else if (c == PAGE_DOWN) {
-      ec.cy = ec.rowOffset + ec.screenRows - 1;
-      if (ec.cy > ec.numRows)
-        ec.cy = ec.numRows;
-    }
-    int times = ec.screenRows;
-    while (times--)
-      editorMoveCursor(c == PAGE_UP ? MOVE_CURSOR_UP : MOVE_CURSOR_DOWN);
+  case END_KEY:
+    editorMoveCursor(MOVE_CURSOR_END, 1);
+    break;
+  case HOME_KEY:
+    editorMoveCursor(MOVE_CURSOR_START, 1);
+    break;
+  case PAGE_UP: {
+    editorMoveCursor(MOVE_CURSOR_UP, ec.screenRows);
     break;
   }
-    editorInsertChar(c);
+  case PAGE_DOWN: {
+    editorMoveCursor(MOVE_CURSOR_DOWN, ec.rowOffset + ec.screenRows - 1);
     break;
+  }
   default:
     if (c >= 0x20) {
       editorInsertChar(c);
@@ -821,7 +845,7 @@ int main(int argc, char *argv[]) {
     editorOpen(argv[1]);
   }
 
-  /* editorSetStatusMessage("Hit Ctrl-Q to quit"); */
+  editorSetStatusMessage("Hit Ctrl-Q to quit & Ctrl-Q to save");
 
   while (1) {
 
