@@ -1,6 +1,6 @@
-# a text editor
+# Dictee
 
-https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
+A simple minimalist text editor written in C heavily inspired by kilo
 
 ## Build
 
@@ -16,7 +16,7 @@ make
 
 ## Debug
 
-```
+```bash
 gdb --args dictee test.txt
 b 165
 run
@@ -25,6 +25,6 @@ c continue
 s step
 ```
 
-## notes
+## Sources
 
-peut etre plus interessant de ne pas traiter les rows separement mais avoir un seul buffer ?
+<https://viewsourcecode.org/snaptoken/kilo/05.aTextEditor.html>
