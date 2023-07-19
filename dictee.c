@@ -140,7 +140,7 @@ char *editorPrompt(char *prompt) {
 }
 
 int editorConfirm() {
-  char *response = editorPrompt("Are you sure ? [Y/n] : %s");
+  char *response = editorPrompt("Are you sure ? [Y/n] %s");
   if (response == NULL || response[0] == 'y' || response[0] == 'Y') {
     return 1;
   }
@@ -758,8 +758,10 @@ void editorProcessKeypress() {
     break;
   case CTRL_KEY('q'):
     // clear terminal
-    fputs("\033c", stdout);
-    exit(0);
+    if (editorConfirm() == 1) {
+      fputs("\033c", stdout);
+      exit(0);
+    }
     break;
   case MOVE_CURSOR_UP:
   case MOVE_CURSOR_DOWN:
