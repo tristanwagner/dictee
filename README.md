@@ -4,7 +4,7 @@ https://viewsourcecode.org/snaptoken/kilo/02.enteringRawMode.html
 
 ## Build
 
-``` bash
+```bash
 make
 ```
 
@@ -12,7 +12,7 @@ make
 
 ```bash
 ./dictee
-``` 
+```
 
 ## Debug
 
@@ -24,3 +24,7 @@ print somevariable
 c continue
 s step
 ```
+
+## notes
+
+peut etre plus interessant de ne pas traiter les rows separement mais avoir un seul buffer ?
