@@ -1,4 +1,6 @@
 #include "editor.h"
+#include <stddef.h>
+#include <sys/_types/_ssize_t.h>
 
 editor_config ec;
 
@@ -48,7 +50,25 @@ int editor_confirm() {
   return 0;
 }
 
-void editor_save_file() {
+int editor_save_file(const char *filename, char *buffer, ssize_t len) {
+  int fd = open(filename, O_RDWR | O_CREAT, 0644);
+  if (fd != -1) {
+    if (ftruncate(fd, len) != -1) {
+      if (write(fd, buffer, len) == len) {
+        close(fd);
+        editor_set_status_msg("%d bytes writen to \"%s\"", len, filename);
+        return len;
+      }
+    }
+    close(fd);
+  }
+
+  editor_set_status_msg("I/O error while saving using editor_save_file(): %s",
+                        strerror(errno));
+  return 0;
+}
+
+void editor_save() {
   if (ec.filename == NULL) {
     ec.filename = editor_prompt("Save as: %s (ESC to cancel)");
     if (ec.filename == NULL || editor_confirm() != 1) {
@@ -57,30 +77,18 @@ void editor_save_file() {
       return;
     }
   }
-  int len;
+  size_t len;
   char *buf = editor_rows_to_string(&len);
 
-  int fd = open(ec.filename, O_RDWR | O_CREAT, 0644);
-  if (fd != -1) {
-    if (ftruncate(fd, len) != -1) {
-      if (write(fd, buf, len) == len) {
-        close(fd);
-        free(buf);
-        ec.dirty = 0;
-        editor_set_status_msg("%d bytes writen to \"%s\"", len, ec.filename);
-        return;
-      }
-    }
-    close(fd);
+  if (editor_save_file(ec.filename, buf, (ssize_t)len) > 0) {
+    ec.dirty = 0;
   }
 
   free(buf);
-  editor_set_status_msg("I/O error while saving using editor_save_file(): %s",
-                        strerror(errno));
 }
 
-char *editor_rows_to_string(int *buflen) {
-  int len = 0;
+char *editor_rows_to_string(size_t *buflen) {
+  size_t len = 0;
   int j;
 
   for (j = 0; j < ec.numRows; j++) {
@@ -598,8 +606,7 @@ void editor_process_keypress() {
     // TODO??
     break;
   case CTRL_KEY('s'):
-    // TODO
-    editor_save_file();
+    editor_save();
     break;
   case CTRL_KEY(BACKSPACE):
     // TODO delete to start of line or delete line
