@@ -1,6 +1,4 @@
 #include "editor.h"
-#include <stddef.h>
-#include <sys/_types/_ssize_t.h>
 
 editor_config ec;
 
@@ -24,14 +22,11 @@ char *editor_prompt(char *prompt) {
       if (buflen > 0) {
         buf[--buflen] = '\0';
       }
-    } else if (c == '\r') {
-      if (buflen != 0) {
+    } else if ((!iscntrl(c) && c < 128) || c == '\r') {
+      if (c == '\r') {
         editor_set_status_msg("");
         return buf;
-      } else {
-        return NULL;
       }
-    } else if (!iscntrl(c) && c < 128) {
       if (buflen == bufsize - 1) {
         bufsize *= 2;
         buf = realloc(buf, bufsize);
@@ -44,13 +39,18 @@ char *editor_prompt(char *prompt) {
 
 int editor_confirm() {
   char *response = editor_prompt("Are you sure ? [Y/n] %s");
-  if (response == NULL || response[0] == 'y' || response[0] == 'Y') {
+  if (response == NULL) {
+    return 0;
+  }
+
+  if (response[0] == '\0' || response[0] == 'y' || response[0] == 'Y') {
     return 1;
   }
+
   return 0;
 }
 
-int editor_save_file(const char *filename, char *buffer, ssize_t len) {
+int editor_save_file(const char *filename, char *buffer, long len) {
   int fd = open(filename, O_RDWR | O_CREAT, 0644);
   if (fd != -1) {
     if (ftruncate(fd, len) != -1) {
@@ -160,7 +160,7 @@ void editor_row_delete_char(editor_row *row, int at) {
 }
 
 void editor_delete_char() {
-  if ((ec.cy == ec.numRows) || (ec.cx == 0 && ec.cy == 0))
+  if (ec.cx == 0 && ec.cy == 0)
     return;
 
   editor_row *row = &ec.row[ec.cy];
@@ -168,6 +168,11 @@ void editor_delete_char() {
     editor_row_delete_char(row, ec.cx - 1);
     ec.cx--;
   } else {
+    if (ec.cy >= ec.numRows) {
+      ec.cy = ec.numRows - 1;
+      editor_delete_row(ec.cy);
+      return;
+    }
     ec.cx = ec.row[ec.cy - 1].size;
     editor_row_append_string(&ec.row[ec.cy - 1], row->chars, row->size);
     editor_delete_row(ec.cy);
@@ -239,6 +244,9 @@ void editor_insert_row(int at, char *line, int linelen) {
 }
 
 void editor_row_append_string(editor_row *row, char *s, size_t len) {
+  if (len < 1 || row == NULL || s == NULL) {
+    return;
+  }
   row->chars = realloc(row->chars, row->size + len + 1);
   memcpy(&row->chars[row->size], s, len);
   row->size += len;
@@ -260,6 +268,9 @@ void editor_delete_row(int at) {
           sizeof(editor_row) * (ec.numRows - at - 1));
   ec.numRows--;
   ec.dirty++;
+  if (ec.filename == NULL && ec.numRows == 0) {
+    ec.dirty = 0;
+  }
 }
 
 void editor_open(char *filename) {

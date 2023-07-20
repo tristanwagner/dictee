@@ -25,6 +25,10 @@ c continue
 s step
 ```
 
+## TODO
+
+- include c-utils and use stuff from there
+
 ## Sources
 
 <https://viewsourcecode.org/snaptoken/kilo/05.aTextEditor.html>
