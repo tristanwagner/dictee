@@ -43,6 +43,7 @@ int editor_confirm() {
     return 0;
   }
 
+  // default is yes
   if (response[0] == '\0' || response[0] == 'y' || response[0] == 'Y') {
     return 1;
   }

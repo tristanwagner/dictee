@@ -1,0 +1,3 @@
+[submodule "include/utils"]
+	path = include/utils
+	url = https://github.com/tristanwagner/c-utils

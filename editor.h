@@ -9,9 +9,9 @@
 #include <string.h>
 #include <time.h>
 
-#include "buffer.h"
-#include "term.h"
-#include "uerror.h"
+#include "include/utils/src/buffer.h"
+#include "include/utils/src/term.h"
+#include "include/utils/src/uerror.h"
 
 #define CTRL_KEY(k) ((k)&0x1F)
 #define VERSION "0.0.1"
