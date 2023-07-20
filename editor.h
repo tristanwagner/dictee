@@ -7,21 +7,21 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <time.h>
 
 #include "include/utils/src/buffer.h"
 #include "include/utils/src/term.h"
 #include "include/utils/src/uerror.h"
+#include "include/utils/src/ustring.h"
 
 #define CTRL_KEY(k) ((k)&0x1F)
-#define ESC '\x1b'
-#define CSI '['
 
 #define VERSION "0.0.1"
 
 #define TAB_SIZE 2
 
-enum editorKeys {
+enum editor_keys {
   BACKSPACE = 127,
   MOVE_CURSOR_UP = 1000,
   MOVE_CURSOR_DOWN,
@@ -36,12 +36,25 @@ enum editorKeys {
   PAGE_DOWN,
 };
 
+enum editor_highlight {
+  HL_DEFAULT = 0,
+  HL_NUMBER,
+  HL_SEARCH_RESULT,
+};
+
 typedef struct {
   char *chars;
   int size;
   char *render;
   int rsize;
+  unsigned char* hl;
 } editor_row;
+
+typedef struct {
+  int cx, cy;
+  int rowOffset;
+  int colOffset;
+} editor_cursor_position;
 
 //TODO extract buffer/file stuff
 //to be able to support multiple files
@@ -60,7 +73,11 @@ typedef struct {
   time_t statusmsg_time;
 } editor_config;
 
+void editor_save_cursor_position();
+void editor_restore_cursor_position();
 int editor_read_key();
+void editor_row_update_syntax(editor_row *row);
+int editor_syntax_to_color(int hl);
 void editor_update_row(editor_row *row);
 void editor_insert_row(int at, char *line, int linelen);
 void editor_delete_row(int at);

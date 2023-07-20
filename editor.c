@@ -1,6 +1,25 @@
 #include "editor.h"
+#include <stdlib.h>
+#include <string.h>
 
-editor_config ec;
+static editor_config ec = {0};
+
+// save cursor pos
+static editor_cursor_position ecp = {0};
+
+void editor_save_cursor_position() {
+  ecp.cx = ec.cx;
+  ecp.cy = ec.cy;
+  ecp.colOffset = ec.colOffset;
+  ecp.rowOffset = ec.rowOffset;
+}
+
+void editor_restore_cursor_position() {
+  ec.cx = ecp.cx;
+  ec.cy = ecp.cy;
+  ec.colOffset = ecp.colOffset;
+  ec.rowOffset = ecp.rowOffset;
+}
 
 char *editor_prompt(char *prompt, void (*callback)(char *, int)) {
   size_t bufsize = 128;
@@ -61,6 +80,16 @@ void editor_search_prompt_callback(char *query, int c) {
   static int last_match = -1;
   // search direction  1 forward | -1 backward
   static int direction = 1;
+
+  static int saved_hl_line;
+  static char *saved_hl = NULL;
+
+  if (saved_hl != NULL) {
+    memcpy(ec.row[saved_hl_line].hl, saved_hl, ec.row[saved_hl_line].rsize);
+    free(saved_hl);
+    saved_hl = NULL;
+  }
+
   switch (c) {
   case '\r':
   case ESC:
@@ -98,33 +127,31 @@ void editor_search_prompt_callback(char *query, int c) {
     char *match = strstr(row->render, query);
     if (match) {
       last_match = ec.cy = current;
-      ec.cx = editor_row_rx_to_cx(row, match - row->render);
+      int rx = match - row->render;
+      ec.cx = editor_row_rx_to_cx(row, rx);
       // scroll bottom so result will be top of screen
       ec.rowOffset = ec.numRows;
+
+      saved_hl_line = current;
+      saved_hl = malloc(row->rsize);
+      memcpy(saved_hl, row->hl, row->rsize);
+
+      memset(&row->hl[rx], HL_SEARCH_RESULT, str_len(query));
       break;
     }
   }
 }
 void editor_find() {
-  // save editor cursor
-  int cx = ec.cx;
-  int cy = ec.cy;
-  int colOffset = ec.colOffset;
-  int rowOffset = ec.rowOffset;
+  editor_save_cursor_position();
   // TODO:
   // enter search mode
   // make binds to navigate results
   char *query = editor_prompt("Search: %s (ESC to cancel)",
                               editor_search_prompt_callback);
-
   if (query) {
     free(query);
   } else {
-    // restore
-    ec.cx = cx;
-    ec.cy = cy;
-    ec.colOffset = colOffset;
-    ec.rowOffset = rowOffset;
+    editor_restore_cursor_position();
   }
 }
 
@@ -286,6 +313,43 @@ int editor_row_rx_to_cx(editor_row *row, int rx) {
   return cx;
 }
 
+void editor_row_update_syntax(editor_row *row) {
+  row->hl = realloc(row->hl, row->rsize);
+  memset(row->hl, HL_DEFAULT, row->rsize);
+
+  int prev_sep = 1;
+  int i = 0;
+  while (i < row->rsize) {
+    char c = row->render[i];
+    unsigned char prev_hl = i > 0 ? row->hl[i - 1] : HL_DEFAULT;
+
+    // handle numbers
+    if (isdigit(c) && (prev_sep || prev_hl == HL_NUMBER) ||
+        (c == '.' && prev_hl == HL_NUMBER)) {
+      row->hl[i] = HL_NUMBER;
+      i++;
+      prev_sep = 0;
+      continue;
+    }
+
+    prev_sep = c_is_separator(c);
+    i++;
+  }
+}
+
+int editor_syntax_to_color(int hl) {
+  switch (hl) {
+  case HL_NUMBER:
+    return 31;
+  case HL_SEARCH_RESULT:
+    return 93;
+  case HL_DEFAULT:
+    return 39;
+  default:
+    return 37;
+  }
+}
+
 void editor_update_row(editor_row *row) {
   int j, tabs = 0;
 
@@ -316,6 +380,8 @@ void editor_update_row(editor_row *row) {
 
   row->render[idx] = '\0';
   row->rsize = idx;
+
+  editor_row_update_syntax(row);
 }
 
 void editor_insert_row(int at, char *line, int linelen) {
@@ -331,6 +397,7 @@ void editor_insert_row(int at, char *line, int linelen) {
   ec.row[at].chars[linelen] = '\0';
   ec.row[at].rsize = 0;
   ec.row[at].render = NULL;
+  ec.row[at].hl = NULL;
 
   editor_update_row(&ec.row[at]);
   ec.numRows++;
@@ -352,6 +419,7 @@ void editor_row_append_string(editor_row *row, char *s, size_t len) {
 void editor_free_row(editor_row *row) {
   free(row->render);
   free(row->chars);
+  free(row->hl);
 }
 
 void editor_delete_row(int at) {
@@ -397,7 +465,7 @@ void editor_open(char *filename) {
   ec.dirty = 0;
 }
 
-void editorDrawRows(buffer *ab) {
+void editor_draw_rows(buffer *ab) {
   int y;
   for (y = 0; y < ec.screenRows; y++) {
     int fileRow = y + ec.rowOffset;
@@ -423,8 +491,25 @@ void editorDrawRows(buffer *ab) {
       int len = ec.row[fileRow].rsize - ec.colOffset;
       len = len < 0 ? 0 : len;
       len = len > ec.screenCols ? ec.screenCols : len;
-      buffer_append(ab, &ec.row[fileRow].render[ec.colOffset], len);
+      char *c = &ec.row[fileRow].render[ec.colOffset];
+      unsigned char *hl = &ec.row[fileRow].hl[ec.colOffset];
+      int current_color = -1;
+      for (int i = 0; i < len; i++) {
+        int color = editor_syntax_to_color(hl[i]);
+        if (current_color != color) {
+          char buf[16];
+// KEK
+#ifdef RAINBOW_MODE
+          color = color - (i % 9);
+#endif
+          int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+          buffer_append(ab, buf, clen);
+        }
+        current_color = color;
+        buffer_append(ab, &c[i], 1);
+      }
     }
+
     // clear from cursor to end of line
     buffer_append(ab, "\x1b[K", 3);
     // clear line
@@ -432,7 +517,7 @@ void editorDrawRows(buffer *ab) {
   }
 }
 
-void editorDrawStatusBar(buffer *ab) {
+void editor_draw_status_bar(buffer *ab) {
   buffer_append(ab, "\x1b[7m", 4);
   char status[80], rstatus[80];
   int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
@@ -456,7 +541,7 @@ void editorDrawStatusBar(buffer *ab) {
   buffer_append(ab, "\r\n", 2);
 }
 
-void editorDrawMessageBar(buffer *ab) {
+void editor_draw_message_bar(buffer *ab) {
   buffer_append(ab, "\x1b[K", 3);
   int msglen = strlen(ec.statusmsg);
   if (msglen > ec.screenCols)
@@ -513,9 +598,9 @@ void editor_refresh_screen() {
   // postition cursor top left
   buffer_append(&ab, "\x1b[H", 3);
 
-  editorDrawRows(&ab);
-  editorDrawStatusBar(&ab);
-  editorDrawMessageBar(&ab);
+  editor_draw_rows(&ab);
+  editor_draw_status_bar(&ab);
+  editor_draw_message_bar(&ab);
 
   // position cursor to actual cursor position
   char buf[32];
