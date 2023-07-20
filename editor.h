@@ -14,6 +14,9 @@
 #include "include/utils/src/uerror.h"
 
 #define CTRL_KEY(k) ((k)&0x1F)
+#define ESC '\x1b'
+#define CSI '['
+
 #define VERSION "0.0.1"
 
 #define TAB_SIZE 2
@@ -72,6 +75,7 @@ void editor_row_append_string(editor_row *row, char *s, size_t len);
 void editor_move_cursor(int key, int times);
 void editor_row_insert_char(editor_row *row, int at, int c);
 int editor_row_cx_to_rx(editor_row *row, int cx);
+int editor_row_rx_to_cx(editor_row *row, int rx);
 int editor_save_file(const char *filename, char *buffer, ssize_t len);
 void editor_save();
 int editor_confirm();
@@ -81,6 +85,6 @@ void editor_init();
 void editor_open(char *filename);
 void editor_refresh_window_size();
 void editor_process_keypress();
-char *editor_prompt(char *prompt);
+char *editor_prompt(char *prompt, void (*callback)(char *, int));
 
 #endif
