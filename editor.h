@@ -22,6 +22,8 @@
 #define TAB_SIZE 2
 
 enum editor_keys {
+  TAB = 9,
+  SPACE = 32,
   BACKSPACE = 127,
   MOVE_CURSOR_UP = 1000,
   MOVE_CURSOR_DOWN,

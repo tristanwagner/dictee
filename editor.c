@@ -1,6 +1,7 @@
 #include "editor.h"
 #include <stdlib.h>
 #include <string.h>
+#include <term.h>
 
 static editor_config ec = {0};
 
@@ -1005,11 +1006,16 @@ void editor_init() {
 
 void editor_process_keypress() {
   int c = editor_read_key();
-  /* editor_set_status_msg("Key %02x pressed", c); */
+  editor_set_status_msg("Key %02x pressed", c);
   switch (c) {
   case 0:
   case ESC:
     // TODO??
+    break;
+  case TAB:
+    for (int i = 0; i < TAB_SIZE; i++) {
+      editor_insert_char(SPACE);
+    }
     break;
   case CTRL_KEY('o'):
     editor_open();
