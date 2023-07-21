@@ -1,7 +1,4 @@
 #include "editor.h"
-#include <stdlib.h>
-#include <string.h>
-#include <term.h>
 
 static editor_config ec = {0};
 
@@ -1040,9 +1037,7 @@ void editor_process_keypress() {
     editor_delete_char();
     break;
   case CTRL_KEY('q'):
-    // clear terminal
     if (editor_confirm() == 1) {
-      term_clean();
       exit(0);
     }
     break;
