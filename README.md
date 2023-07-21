@@ -5,6 +5,8 @@ A simple minimalist text editor written in C heavily inspired by kilo
 ## Build
 
 ```bash
+make update-submodules
+make utils
 make
 ```
 
@@ -12,6 +14,8 @@ make
 
 ```bash
 ./dictee
+# or with a filename
+./dictee test.txt
 ```
 
 ## Debug

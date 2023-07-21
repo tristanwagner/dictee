@@ -1,6 +1,4 @@
 #include "editor.h"
-#include "include/utils/src/ustring.h"
-#include <string.h>
 
 static editor_config ec = {0};
 
@@ -404,6 +402,7 @@ void editor_row_update_syntax(editor_row *row) {
       int j;
       for (j = 0; keywords[j]; j++) {
         int len = str_len(keywords[j]);
+        // kw2 are the ones that ends with |
         int kw2 = keywords[j][len - 1] == '|';
         if (kw2)
           len--;
@@ -622,13 +621,25 @@ void editor_draw_rows(buffer *ab) {
       int current_color = -1;
       for (int i = 0; i < len; i++) {
         int color = editor_syntax_to_color(hl[i]);
-        if (current_color != color) {
-          char buf[16];
-          int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
-          buffer_append(ab, buf, clen);
+        if (iscntrl(c[i])) {
+          char sym = (c[i] <= 26 ? '@' + c[i] : '?');
+          buffer_append(ab, "\x1b[7m", 4);
+          buffer_append(ab, &sym, 1);
+          buffer_append(ab, "\x1b[m", 3);
+          if (current_color != -1) {
+            char buf[16];
+            int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+            buffer_append(ab, buf, clen);
+          }
+        } else {
+          if (current_color != color) {
+            char buf[16];
+            int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+            buffer_append(ab, buf, clen);
+          }
+          current_color = color;
+          buffer_append(ab, &c[i], 1);
         }
-        current_color = color;
-        buffer_append(ab, &c[i], 1);
       }
     }
 
