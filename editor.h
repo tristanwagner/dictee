@@ -38,17 +38,20 @@ enum editor_keys {
 
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
 #define HL_HIGHLIGHT_STRINGS (1<<1)
+#define HL_HIGHLIGHT_COMMENT (1<<2)
 
 enum editor_highlight {
   HL_DEFAULT = 0,
   HL_NUMBER,
   HL_STRING,
+  HL_COMMENT,
   HL_SEARCH_RESULT,
 };
 
 typedef struct {
   char* filetype;
   char** filematches;
+  char* single_line_comment_start;
   int flags;
 } editor_syntax;
 

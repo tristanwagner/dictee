@@ -1,4 +1,6 @@
 #include "editor.h"
+#include "include/utils/src/ustring.h"
+#include <string.h>
 
 static editor_config ec = {0};
 
@@ -9,8 +11,10 @@ char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
 char *JS_HL_extensions[] = {".js", ".jsx", NULL};
 
 editor_syntax HLDB[] = {
-    {"c", C_HL_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
-    {"js", JS_HL_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
+    {"c", C_HL_extensions, "//",
+     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_COMMENT},
+    {"js", JS_HL_extensions, "//",
+     HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_COMMENT},
 };
 
 #define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
@@ -329,6 +333,9 @@ void editor_row_update_syntax(editor_row *row) {
   if (ec.syntax == NULL)
     return;
 
+  char *slc_start = ec.syntax->single_line_comment_start;
+  int slc_len = slc_start ? str_len(slc_start) : 0;
+
   int prev_sep = 1;
   char in_string = 0;
 
@@ -336,6 +343,16 @@ void editor_row_update_syntax(editor_row *row) {
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_hl = i > 0 ? row->hl[i - 1] : HL_DEFAULT;
+
+    // handle comment
+    if (ec.syntax->flags & HL_HIGHLIGHT_COMMENT) {
+      if (slc_len && !in_string) {
+        if (!strncmp(&row->render[i], slc_start, slc_len)) {
+          memset(&row->hl[i], HL_COMMENT, row->rsize - i);
+          break;
+        }
+      }
+    }
 
     // handle strings
     if (ec.syntax->flags & HL_HIGHLIGHT_STRINGS) {
@@ -388,6 +405,8 @@ int editor_syntax_to_color(int hl) {
     return 35;
   case HL_SEARCH_RESULT:
     return 93;
+  case HL_COMMENT:
+    return 36;
   case HL_DEFAULT:
     return 39;
   default:
