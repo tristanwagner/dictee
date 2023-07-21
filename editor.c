@@ -8,12 +8,22 @@ static editor_config ec = {0};
 static editor_cursor_position ecp = {0};
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
+char *C_HL_keywords[] = {"switch",    "if",      "while",   "for",    "break",
+                         "continue",  "return",  "else",    "struct", "union",
+                         "typedef",   "static",  "enum",    "class",  "case",
+                         "int|",      "long|",   "double|", "float|", "char|",
+                         "unsigned|", "signed|", "void|",   NULL};
+
 char *JS_HL_extensions[] = {".js", ".jsx", NULL};
+char *JS_HL_keywords[] = {"switch",   "if",     "while", "for",     "break",
+                          "continue", "return", "else",  "static",  "const|",
+                          "class",    "case",   "let|",  "String|", "Array|",
+                          "Set|",     NULL};
 
 editor_syntax HLDB[] = {
-    {"c", C_HL_extensions, "//",
+    {"c", C_HL_extensions, "//", C_HL_keywords,
      HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_COMMENT},
-    {"js", JS_HL_extensions, "//",
+    {"js", JS_HL_extensions, "//", JS_HL_keywords,
      HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_COMMENT},
 };
 
@@ -333,6 +343,8 @@ void editor_row_update_syntax(editor_row *row) {
   if (ec.syntax == NULL)
     return;
 
+  char **keywords = ec.syntax->keywords;
+
   char *slc_start = ec.syntax->single_line_comment_start;
   int slc_len = slc_start ? str_len(slc_start) : 0;
 
@@ -375,6 +387,7 @@ void editor_row_update_syntax(editor_row *row) {
         continue;
       }
     }
+
     // handle numbers
     if (ec.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
       if (isdigit(c) && (prev_sep || prev_hl == HL_NUMBER) ||
@@ -386,6 +399,26 @@ void editor_row_update_syntax(editor_row *row) {
       }
     }
 
+    // handle keywords
+    if (prev_sep) {
+      int j;
+      for (j = 0; keywords[j]; j++) {
+        int len = str_len(keywords[j]);
+        int kw2 = keywords[j][len - 1] == '|';
+        if (kw2)
+          len--;
+        if (!strncmp(&row->render[i], keywords[j], len) &&
+            c_is_separator(row->render[i + len])) {
+          memset(&row->hl[i], kw2 ? HL_KEYWORD2 : HL_KEYWORD1, len);
+          i += len;
+          break;
+        }
+      }
+      if (keywords[j] != NULL) {
+        prev_sep = 0;
+        continue;
+      }
+    }
     prev_sep = c_is_separator(c);
     i++;
   }
@@ -407,6 +440,10 @@ int editor_syntax_to_color(int hl) {
     return 93;
   case HL_COMMENT:
     return 36;
+  case HL_KEYWORD1:
+    return 33;
+  case HL_KEYWORD2:
+    return 32;
   case HL_DEFAULT:
     return 39;
   default:
@@ -587,10 +624,6 @@ void editor_draw_rows(buffer *ab) {
         int color = editor_syntax_to_color(hl[i]);
         if (current_color != color) {
           char buf[16];
-// KEK
-#ifdef RAINBOW_MODE
-          color = color - (i % 9);
-#endif
           int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
           buffer_append(ab, buf, clen);
         }
