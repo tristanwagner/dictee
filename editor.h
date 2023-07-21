@@ -117,8 +117,9 @@ void editor_save();
 int editor_confirm();
 void editor_refresh_screen();
 void editor_init();
-// TODO: implement command for opening file inside the editor
-void editor_open(char *filename);
+void editor_open_file(char *filename);
+void editor_open();
+void editor_free_current_buffer();
 void editor_refresh_window_size();
 void editor_process_keypress();
 char *editor_prompt(char *prompt, void (*callback)(char *, int));

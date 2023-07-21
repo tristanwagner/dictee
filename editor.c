@@ -1,4 +1,6 @@
 #include "editor.h"
+#include <stdlib.h>
+#include <string.h>
 
 static editor_config ec = {0};
 
@@ -6,17 +8,20 @@ static editor_config ec = {0};
 static editor_cursor_position ecp = {0};
 
 char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
-char *C_HL_keywords[] = {"switch",    "if",      "while",   "for",    "break",
-                         "continue",  "return",  "else",    "struct", "union",
-                         "typedef",   "static",  "enum",    "class",  "case",
-                         "int|",      "long|",   "double|", "float|", "char|",
-                         "unsigned|", "signed|", "void|",   NULL};
+char *C_HL_keywords[] = {
+    "switch",  "if",    "while",    "for",     "break",   "continue",
+    "return",  "else",  "struct",   "union",   "typedef", "static",
+    "enum",    "class", "#include", "#define", "#endif",  "#if",
+    "#else",   "#elif", "#idef",    "#ifndef", "case",    "default",
+    "int|",    "long|", "double|",  "float|",  "char|",   "unsigned|",
+    "signed|", "void|", NULL};
 
-char *JS_HL_extensions[] = {".js", ".jsx", NULL};
-char *JS_HL_keywords[] = {"switch",   "if",     "while", "for",     "break",
-                          "continue", "return", "else",  "static",  "const|",
-                          "class",    "case",   "let|",  "String|", "Array|",
-                          "Set|",     NULL};
+char *JS_HL_extensions[] = {".js", ".jsx", ".cjs", ".mjs", NULL};
+char *JS_HL_keywords[] = {"switch",   "if",      "while",   "for",     "break",
+                          "continue", "return",  "default", "import",  "export",
+                          "require",  "console", "else",    "static",  "const|",
+                          "class",    "case",    "let|",    "String|", "Array|",
+                          "Set|",     "Buffer|", NULL};
 
 editor_syntax HLDB[] = {
     {"c", C_HL_extensions, "//", C_HL_keywords,
@@ -193,6 +198,13 @@ int editor_save_file(const char *filename, char *buffer, long len) {
   return 0;
 }
 
+void editor_open() {
+  char *query = editor_prompt("Open file: %s (ESC to cancel)", NULL);
+  if (query) {
+    editor_open_file(query);
+    free(query);
+  }
+}
 void editor_save() {
   if (ec.filename == NULL) {
     ec.filename = editor_prompt("Save as: %s (ESC to cancel)", NULL);
@@ -429,6 +441,8 @@ void editor_update_syntax() {
   }
 }
 
+// TODO:
+// define these in a config so we can do theming
 int editor_syntax_to_color(int hl) {
   switch (hl) {
   case HL_NUMBER:
@@ -558,15 +572,18 @@ void editor_delete_row(int at) {
   }
 }
 
-void editor_open(char *filename) {
-  free(ec.filename);
-  ec.filename = strdup(filename);
+void editor_open_file(char *filename) {
+  FILE *fp = fopen(filename, "r");
+  if (!fp) {
+    editor_set_status_msg("Could not open file \"%s\"", filename);
+    return;
+  } else {
+    editor_free_current_buffer();
+  }
 
+  ec.filename = strdup(filename);
   editor_select_filetype_syntax();
 
-  FILE *fp = fopen(filename, "r");
-  if (!fp)
-    die("fopen");
   char *line = NULL;
   size_t linecap = 0;
   int linelen;
@@ -641,6 +658,12 @@ void editor_draw_rows(buffer *ab) {
           buffer_append(ab, &c[i], 1);
         }
       }
+      // reset to default color at end of line
+      // to prevent last line from coloring all
+      // the rest of the term ?
+      // Maybe I should just specify the color
+      // directly in draw_status_bar etc
+      buffer_append(ab, "\x1b[m", 3);
     }
 
     // clear from cursor to end of line
@@ -904,6 +927,23 @@ void editor_refresh_window_size() {
   ec.screenRows -= 2;
 }
 
+void editor_free_current_buffer() {
+  ec.cx = 0;
+  ec.cy = 0;
+  ec.rx = 0;
+  ec.rowOffset = 0;
+  ec.colOffset = 0;
+  ec.dirty = 0;
+  if (ec.row != NULL && ec.numRows > 0) {
+    for (int i = 0; i < ec.numRows; i++) {
+      editor_free_row(&ec.row[i]);
+    }
+    free(ec.row);
+  }
+  ec.row = NULL;
+  ec.numRows = 0;
+}
+
 void editor_init() {
   ec.cx = 0;
   ec.cy = 0;
@@ -923,13 +963,13 @@ void editor_init() {
 void editor_process_keypress() {
   int c = editor_read_key();
   /* editor_set_status_msg("Key %02x pressed", c); */
-  // ignore weird chars
-  /* if (c != 0x1B && c < 0x20) { */
-  /* } */
   switch (c) {
   case 0:
   case ESC:
     // TODO??
+    break;
+  case CTRL_KEY('o'):
+    editor_open();
     break;
   case CTRL_KEY('f'):
     editor_find();
