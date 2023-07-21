@@ -36,11 +36,21 @@ enum editor_keys {
   PAGE_DOWN,
 };
 
+#define HL_HIGHLIGHT_NUMBERS (1<<0)
+#define HL_HIGHLIGHT_STRINGS (1<<1)
+
 enum editor_highlight {
   HL_DEFAULT = 0,
   HL_NUMBER,
+  HL_STRING,
   HL_SEARCH_RESULT,
 };
+
+typedef struct {
+  char* filetype;
+  char** filematches;
+  int flags;
+} editor_syntax;
 
 typedef struct {
   char *chars;
@@ -71,13 +81,16 @@ typedef struct {
   char *filename;
   char statusmsg[80];
   time_t statusmsg_time;
+  editor_syntax *syntax;
 } editor_config;
 
 void editor_save_cursor_position();
 void editor_restore_cursor_position();
 int editor_read_key();
+void editor_update_syntax();
 void editor_row_update_syntax(editor_row *row);
 int editor_syntax_to_color(int hl);
+void editor_select_filetype_syntax();
 void editor_update_row(editor_row *row);
 void editor_insert_row(int at, char *line, int linelen);
 void editor_delete_row(int at);

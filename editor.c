@@ -1,11 +1,19 @@
 #include "editor.h"
-#include <stdlib.h>
-#include <string.h>
 
 static editor_config ec = {0};
 
 // save cursor pos
 static editor_cursor_position ecp = {0};
+
+char *C_HL_extensions[] = {".c", ".h", ".cpp", ".hpp", NULL};
+char *JS_HL_extensions[] = {".js", ".jsx", NULL};
+
+editor_syntax HLDB[] = {
+    {"c", C_HL_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
+    {"js", JS_HL_extensions, HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS},
+};
+
+#define HLDB_ENTRIES (sizeof(HLDB) / sizeof(HLDB[0]))
 
 void editor_save_cursor_position() {
   ecp.cx = ec.cx;
@@ -181,6 +189,7 @@ void editor_save() {
       editor_set_status_msg("Save aborted");
       return;
     }
+    editor_select_filetype_syntax();
   }
   size_t len;
   char *buf = editor_rows_to_string(&len);
@@ -317,19 +326,47 @@ void editor_row_update_syntax(editor_row *row) {
   row->hl = realloc(row->hl, row->rsize);
   memset(row->hl, HL_DEFAULT, row->rsize);
 
+  if (ec.syntax == NULL)
+    return;
+
   int prev_sep = 1;
+  char in_string = 0;
+
   int i = 0;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_hl = i > 0 ? row->hl[i - 1] : HL_DEFAULT;
 
+    // handle strings
+    if (ec.syntax->flags & HL_HIGHLIGHT_STRINGS) {
+      if (in_string) {
+        row->hl[i] = HL_STRING;
+        if (c == '\\' && i + 1 < row->rsize) {
+          row->hl[i + 1] = HL_STRING;
+          i += 2;
+          continue;
+        }
+        if (c == in_string)
+          in_string = 0;
+        i++;
+        prev_sep = 1;
+        continue;
+      } else if (c == '"' || c == '\'') {
+        in_string = c;
+        row->hl[i] = HL_STRING;
+        i++;
+        continue;
+      }
+    }
     // handle numbers
-    if (isdigit(c) && (prev_sep || prev_hl == HL_NUMBER) ||
-        (c == '.' && prev_hl == HL_NUMBER)) {
-      row->hl[i] = HL_NUMBER;
-      i++;
-      prev_sep = 0;
-      continue;
+    if (ec.syntax->flags & HL_HIGHLIGHT_NUMBERS) {
+      if (isdigit(c) && (prev_sep || prev_hl == HL_NUMBER) ||
+          (c == '.' && prev_hl == HL_NUMBER)) {
+        row->hl[i] = HL_NUMBER;
+        i++;
+        prev_sep = 0;
+        continue;
+      }
     }
 
     prev_sep = c_is_separator(c);
@@ -337,16 +374,47 @@ void editor_row_update_syntax(editor_row *row) {
   }
 }
 
+void editor_update_syntax() {
+  for (int i = 0; i < ec.numRows; i++) {
+    editor_row_update_syntax(&ec.row[i]);
+  }
+}
+
 int editor_syntax_to_color(int hl) {
   switch (hl) {
   case HL_NUMBER:
     return 31;
+  case HL_STRING:
+    return 35;
   case HL_SEARCH_RESULT:
     return 93;
   case HL_DEFAULT:
     return 39;
   default:
     return 37;
+  }
+}
+
+void editor_select_filetype_syntax() {
+  ec.syntax = NULL;
+  if (ec.filename == NULL)
+    return;
+
+  char *ext = strstr(ec.filename, ".");
+
+  for (unsigned int i = 0; i < HLDB_ENTRIES; i++) {
+    editor_syntax *s = &HLDB[i];
+    unsigned int j = 0;
+    while (s->filematches[j]) {
+      int is_ext = s->filematches[j][0] == '.';
+      if ((is_ext && ext && !strcmp(ext, s->filematches[j])) ||
+          (!is_ext && strstr(ec.filename, s->filematches[j]))) {
+        ec.syntax = s;
+        editor_update_syntax();
+        return;
+      }
+      j++;
+    }
   }
 }
 
@@ -439,6 +507,8 @@ void editor_open(char *filename) {
   free(ec.filename);
   ec.filename = strdup(filename);
 
+  editor_select_filetype_syntax();
+
   FILE *fp = fopen(filename, "r");
   if (!fp)
     die("fopen");
@@ -523,7 +593,8 @@ void editor_draw_status_bar(buffer *ab) {
   int len = snprintf(status, sizeof(status), "%.20s - %d lines %s",
                      ec.filename ? ec.filename : "[No Name]", ec.numRows,
                      ec.dirty ? "(modified)" : "");
-  int rlen = snprintf(rstatus, sizeof(rstatus), "[%d/%d] %d/%d", ec.cx, ec.cy,
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%s | [%d/%d] %d/%d",
+                      ec.syntax ? ec.syntax->filetype : "no ft", ec.cx, ec.cy,
                       ec.cy + 1, ec.numRows);
   if (len > ec.screenCols)
     len = ec.screenCols;
@@ -781,6 +852,7 @@ void editor_init() {
   ec.filename = NULL;
   ec.statusmsg[0] = '\0';
   ec.statusmsg_time = 0;
+  ec.syntax = NULL;
   editor_refresh_window_size();
   editor_set_status_msg("Hit Ctrl-Q to quit & Ctrl-Q to save");
 }
