@@ -45,6 +45,7 @@ enum editor_highlight {
   HL_NUMBER,
   HL_STRING,
   HL_COMMENT,
+  HL_MLCOMMENT,
   HL_KEYWORD1,
   HL_KEYWORD2,
   HL_SEARCH_RESULT,
@@ -54,16 +55,20 @@ typedef struct {
   char* filetype;
   char** filematches;
   char* single_line_comment_start;
+  char* multiline_comment_start;
+  char* multiline_comment_end;
   char** keywords;
   int flags;
 } editor_syntax;
 
 typedef struct {
+  int index;
   char *chars;
   int size;
   char *render;
   int rsize;
   unsigned char* hl;
+  int hl_open_comment;
 } editor_row;
 
 typedef struct {

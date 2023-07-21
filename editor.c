@@ -24,9 +24,9 @@ char *JS_HL_keywords[] = {"switch",   "if",      "while",   "for",     "break",
                           "Set|",     "Buffer|", NULL};
 
 editor_syntax HLDB[] = {
-    {"c", C_HL_extensions, "//", C_HL_keywords,
+    {"c", C_HL_extensions, "//", "/*", "*/", C_HL_keywords,
      HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_COMMENT},
-    {"js", JS_HL_extensions, "//", JS_HL_keywords,
+    {"js", JS_HL_extensions, "//", "/*", "*/", JS_HL_keywords,
      HL_HIGHLIGHT_NUMBERS | HL_HIGHLIGHT_STRINGS | HL_HIGHLIGHT_COMMENT},
 };
 
@@ -356,22 +356,50 @@ void editor_row_update_syntax(editor_row *row) {
   char **keywords = ec.syntax->keywords;
 
   char *slc_start = ec.syntax->single_line_comment_start;
+  char *mlc_start = ec.syntax->multiline_comment_start;
+  char *mlc_end = ec.syntax->multiline_comment_end;
+
   int slc_len = slc_start ? str_len(slc_start) : 0;
+  int mlcs_len = mlcs_len ? str_len(mlc_start) : 0;
+  int mlce_len = mlce_len ? str_len(mlc_end) : 0;
 
   int prev_sep = 1;
-  char in_string = 0;
+  int in_string = 0;
+  int in_comment = (row->index > 0 && ec.row[row->index - 1].hl_open_comment);
 
   int i = 0;
   while (i < row->rsize) {
     char c = row->render[i];
     unsigned char prev_hl = i > 0 ? row->hl[i - 1] : HL_DEFAULT;
 
-    // handle comment
     if (ec.syntax->flags & HL_HIGHLIGHT_COMMENT) {
-      if (slc_len && !in_string) {
+      // handle single line comment
+      if (slc_len && !in_string && !in_comment) {
         if (!strncmp(&row->render[i], slc_start, slc_len)) {
           memset(&row->hl[i], HL_COMMENT, row->rsize - i);
           break;
+        }
+      }
+
+      // handle multi line comment
+      if (mlcs_len && mlce_len && !in_string) {
+        if (in_comment) {
+          row->hl[i] = HL_MLCOMMENT;
+          if (!strncmp(&row->render[i], mlc_end, mlce_len)) {
+            memset(&row->hl[i], HL_MLCOMMENT, mlce_len);
+            i += mlce_len;
+            in_comment = 0;
+            prev_sep = 1;
+            continue;
+          } else {
+            i++;
+            continue;
+          }
+        } else if (!strncmp(&row->render[i], mlc_start, mlcs_len)) {
+          memset(&row->hl[i], HL_MLCOMMENT, mlcs_len);
+          i += mlcs_len;
+          in_comment = 1;
+          continue;
         }
       }
     }
@@ -433,6 +461,12 @@ void editor_row_update_syntax(editor_row *row) {
     prev_sep = c_is_separator(c);
     i++;
   }
+
+  int changed = (row->hl_open_comment != in_comment);
+  row->hl_open_comment = in_comment;
+
+  if (changed && row->index + 1 < ec.numRows)
+    editor_row_update_syntax(&ec.row[row->index + 1]);
 }
 
 void editor_update_syntax() {
@@ -451,6 +485,7 @@ int editor_syntax_to_color(int hl) {
     return 35;
   case HL_SEARCH_RESULT:
     return 93;
+  case HL_MLCOMMENT:
   case HL_COMMENT:
     return 36;
   case HL_KEYWORD1:
@@ -493,7 +528,6 @@ void editor_update_row(editor_row *row) {
   // suport tabs
   // TODO: add TAB_SIZE as space if tab pressed
   for (j = 0; j < row->size; j++) {
-
     if (row->chars[j] == '\t')
       tabs++;
   }
@@ -506,7 +540,6 @@ void editor_update_row(editor_row *row) {
   int idx = 0;
   for (j = 0; j < row->size; j++) {
     if (row->chars[j] == '\t') {
-
       row->render[idx++] = ' ';
       while (idx % TAB_SIZE != 0)
         row->render[idx++] = ' ';
@@ -527,6 +560,12 @@ void editor_insert_row(int at, char *line, int linelen) {
   // realloc a new row
   ec.row = realloc(ec.row, sizeof(editor_row) * (ec.numRows + 1));
   memmove(&ec.row[at + 1], &ec.row[at], sizeof(editor_row) * (ec.numRows - at));
+
+  // increment next row indexes
+  for (int i = at + 1; i < ec.numRows; i++)
+    ec.row[i].index++;
+
+  ec.row[at].index = at;
   ec.row[at].size = linelen;
   ec.row[at].chars = malloc(linelen + 1);
 
@@ -535,6 +574,7 @@ void editor_insert_row(int at, char *line, int linelen) {
   ec.row[at].rsize = 0;
   ec.row[at].render = NULL;
   ec.row[at].hl = NULL;
+  ec.row[at].hl_open_comment = 0;
 
   editor_update_row(&ec.row[at]);
   ec.numRows++;
@@ -565,6 +605,9 @@ void editor_delete_row(int at) {
   editor_free_row(&ec.row[at]);
   memmove(&ec.row[at], &ec.row[at + 1],
           sizeof(editor_row) * (ec.numRows - at - 1));
+  // decrement next row indexes
+  for (int i = at; i < ec.numRows; i++)
+    ec.row[i].index--;
   ec.numRows--;
   ec.dirty++;
   if (ec.filename == NULL && ec.numRows == 0) {
