@@ -1,5 +1,7 @@
 dictee
+dictee_shared
 tags
 test.txt
 hello.txt
-dictee.dSYM/
+*.dSYM/
+
