@@ -1,5 +1,4 @@
 #include "editor.h"
-#include "include/utils/src/term.h"
 
 int main(int argc, char *argv[]) {
   term_init();

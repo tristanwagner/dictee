@@ -39,7 +39,9 @@ redirect stderr to `error.log`
 
 ## TODO
 
-- include c-utils and use stuff from there
+- select mechanism
+- copy
+- handle multiple buffers/files
 
 ## Sources
 

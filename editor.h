@@ -1,6 +1,5 @@
 #ifndef _EDITOR_H_
 #define _EDITOR_H_
-#include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdarg.h>
@@ -15,6 +14,7 @@
 // - export to utils package
 #include "clipboard.h"
 #include "include/utils/src/buffer.h"
+#include "include/utils/src/math.h"
 #include "include/utils/src/term.h"
 #include "include/utils/src/uerror.h"
 #include "include/utils/src/ustring.h"
@@ -25,6 +25,7 @@
 #define VERSION "0.0.1"
 
 #define TAB_SIZE 2
+#define SCROLL_OFFSET 4
 
 enum editor_keys {
   TAB = 9,

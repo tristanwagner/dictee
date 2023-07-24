@@ -1,5 +1,4 @@
 #include "editor.h"
-#include "include/utils/src/term.h"
 
 static editor_config ec = {0};
 
@@ -168,9 +167,6 @@ void editor_search_prompt_callback(char *query, int c) {
 }
 void editor_find() {
   editor_save_cursor_position();
-  // TODO:
-  // enter search mode
-  // make binds to navigate results
   char *query = editor_prompt("Search: %s (ESC to cancel/Arrows to navigate)",
                               editor_search_prompt_callback);
   if (query) {
@@ -186,7 +182,7 @@ int editor_save_file(const char *filename, char *buffer, long len) {
     if (ftruncate(fd, len) != -1) {
       if (write(fd, buffer, len) == len) {
         close(fd);
-        editor_set_status_msg("save_file: %d bytes writen to \"%s\"", len,
+        editor_set_status_msg("Saved file: %d bytes writen to \"%s\"", len,
                               filename);
         return len;
       }
@@ -194,8 +190,9 @@ int editor_save_file(const char *filename, char *buffer, long len) {
     close(fd);
   }
 
-  editor_set_status_msg("I/O error while saving using editor_save_file(): %s",
-                        strerror(errno));
+  editor_set_status_msg(
+      "Error: I/O error while saving using editor_save_file(): %s",
+      strerror(errno));
   return 0;
 }
 
@@ -211,7 +208,7 @@ void editor_save() {
     ec.filename = editor_prompt("Save as: %s (ESC to cancel)", NULL);
     if (ec.filename == NULL || editor_confirm() != 1) {
       ec.filename = NULL;
-      editor_set_status_msg("Save aborted");
+      editor_set_status_msg("Save file aborted");
       return;
     }
     editor_select_filetype_syntax();
@@ -219,7 +216,7 @@ void editor_save() {
   size_t len;
   char *buf = editor_rows_to_string(&len);
 
-  if (editor_save_file(ec.filename, buf, (ssize_t)len) > 0) {
+  if (editor_save_file(ec.filename, buf, len) > 0) {
     ec.dirty = 0;
   }
 
@@ -304,8 +301,6 @@ void editor_row_delete_char(editor_row *row, int at) {
     return;
   memmove(&row->chars[at], &row->chars[at + 1], row->size - at);
   row->chars[row->size] = '\0';
-  editor_set_status_msg("ec.cx: %d | rsize %d | at %d", ec.cx,
-                        ec.row[ec.cy].size, at);
   row->size--;
   editor_update_row(row);
   ec.dirty++;
@@ -539,8 +534,6 @@ void editor_select_filetype_syntax() {
 void editor_update_row(editor_row *row) {
   int j, tabs = 0;
 
-  // suport tabs
-  // TODO: add TAB_SIZE as space if tab pressed
   for (j = 0; j < row->size; j++) {
     if (row->chars[j] == '\t')
       tabs++;
@@ -631,7 +624,7 @@ void editor_delete_row(int at) {
 void editor_open_file(char *filename) {
   FILE *fp = fopen(filename, "r");
   if (!fp) {
-    editor_set_status_msg("Could not open file \"%s\"", filename);
+    editor_set_status_msg("Error: File \"%s\" not found", filename);
     return;
   } else {
     editor_free_current_buffer();
@@ -779,13 +772,13 @@ void editor_scroll() {
   }
 
   // scroll back
-  if (ec.cy < ec.rowOffset) {
-    ec.rowOffset = ec.cy;
+  if (ec.cy - SCROLL_OFFSET < ec.rowOffset) {
+    ec.rowOffset = IMAX(0, ec.cy - SCROLL_OFFSET);
   }
 
   // scroll down
-  if (ec.cy >= ec.rowOffset + ec.screenRows) {
-    ec.rowOffset = ec.cy - ec.screenRows + 1;
+  if (ec.cy + SCROLL_OFFSET >= ec.rowOffset + ec.screenRows) {
+    ec.rowOffset = (ec.cy + SCROLL_OFFSET) - ec.screenRows + 1;
   }
 
   if (ec.rx < ec.colOffset) {
@@ -894,9 +887,9 @@ int editor_read_key() {
         int seqlen;
         switch (mouse_seq[0]) {
         case 0x61:
-          return MOVE_CURSOR_DOWN;
+          return MOUSE_SCROLL_DOWN;
         case 0x60:
-          return MOVE_CURSOR_UP;
+          return MOUSE_SCROLL_UP;
         case 0x20:
           seqlen = str_len(mouse_seq);
           editor_set_status_msg("clic gauche pos (%d, %d) | len: %d | hex: %s",
@@ -1057,8 +1050,6 @@ void editor_init() {
   editor_set_status_msg("Hit Ctrl-Q to quit & Ctrl-Q to save");
 }
 
-// TODO:
-// this doesnt work to offset render from term history
 void editor_init_screen() {
   buffer ab = BUFFER_INIT;
   for (int i = 0; i < ec.screenRows + 1; i++) {
@@ -1086,7 +1077,6 @@ void editor_process_keypress() {
   switch (c) {
   case 0:
   case ESC:
-    // TODO??
     break;
   case TAB:
     for (int i = 0; i < TAB_SIZE; i++) {
@@ -1108,6 +1098,16 @@ void editor_process_keypress() {
     break;
   case CTRL_KEY('s'):
     editor_save();
+    break;
+  case CTRL_KEY('c'):
+    // TODO:
+    // select all
+    editor_set_status_msg("TODO:  copy selection");
+    break;
+  case CTRL_KEY('a'):
+    // TODO:
+    // select all
+    editor_set_status_msg("TODO: select all");
     break;
   case CTRL_KEY(BACKSPACE):
     // TODO delete to start of line or delete line
