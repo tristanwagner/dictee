@@ -18,6 +18,7 @@
 #include "include/utils/src/term.h"
 #include "include/utils/src/uerror.h"
 #include "include/utils/src/ustring.h"
+#include "include/utils/src/debug.h"
 
 #define CTRL_KEY(k) ((k)&0x1F)
 
@@ -40,6 +41,8 @@ enum editor_keys {
   DEL_KEY,
   PAGE_UP,
   PAGE_DOWN,
+  MOUSE_SCROLL_UP,
+  MOUSE_SCROLL_DOWN,
 };
 
 #define HL_HIGHLIGHT_NUMBERS (1<<0)
@@ -121,6 +124,7 @@ char *editor_rows_to_string(size_t *len);
 void editor_row_append_string(editor_row *row, const char *s, size_t len);
 void editor_move_cursor(int key, int times);
 void editor_row_insert_char(editor_row *row, int at, int c);
+void editor_row_insert_str(editor_row *row, int at, const char *str, size_t len);
 int editor_row_cx_to_rx(editor_row *row, int cx);
 int editor_row_rx_to_cx(editor_row *row, int rx);
 int editor_save_file(const char *filename, char *buffer, ssize_t len);
@@ -128,11 +132,14 @@ void editor_save();
 int editor_confirm();
 void editor_refresh_screen();
 void editor_init();
+void editor_init_screen();
 void editor_open_file(char *filename);
 void editor_open();
 void editor_free_current_buffer();
 void editor_refresh_window_size();
 void editor_process_keypress();
 char *editor_prompt(char *prompt, void (*callback)(char *, int));
+void editor_paste();
+void editor_exit();
 
 #endif

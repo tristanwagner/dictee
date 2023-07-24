@@ -1,4 +1,5 @@
 #include "editor.h"
+#include "include/utils/src/term.h"
 
 static editor_config ec = {0};
 
@@ -821,7 +822,9 @@ void editor_refresh_screen() {
   // show cursor
   buffer_append(&ab, "\x1b[?25h", 6);
 
-  write(STDOUT_FILENO, ab.b, ab.len);
+  if (write(STDOUT_FILENO, ab.b, ab.len) != ab.len) {
+    DEBUG_PRINT("Error: editor_refresh_screen couldn't write the full buffer");
+  };
   free_buffer(&ab);
 }
 
@@ -872,6 +875,75 @@ int editor_read_key() {
             break;
           }
         }
+
+      } else if (seq[1] == 'M') {
+        // This is a mouse event
+        char mouse_seq[10];
+        int i = 0;
+        int state, button, x, y;
+        // parse response
+        /* \e[M96 0 16 9 */
+        /* \e[M <state> <button> <x> <y> */
+        while (i < 9) {
+          if (read(STDIN_FILENO, &mouse_seq[i], 1) != 1)
+            break;
+          i++;
+        }
+        mouse_seq[i] = '\0';
+        int seqlen;
+        switch (mouse_seq[0]) {
+        case 0x61:
+          return MOVE_CURSOR_DOWN;
+        case 0x60:
+          return MOVE_CURSOR_UP;
+        case 0x20:
+          seqlen = str_len(mouse_seq);
+          editor_set_status_msg("clic gauche pos (%d, %d) | len: %d | hex: %s",
+                                mouse_seq[1], mouse_seq[2], seqlen,
+                                str_to_hex(mouse_seq, seqlen));
+          // editor_move_cursor_to()
+          return ESC;
+        case 0x23:
+          editor_set_status_msg("clic gauche relaché pos (%d, %d)",
+                                mouse_seq[1], mouse_seq[2]);
+          // editor_move_cursor_to()
+          return ESC;
+        default: {
+          seqlen = str_len(mouse_seq);
+          editor_set_status_msg("mouse sequence len %d | hex: %s", seqlen,
+                                str_to_hex(mouse_seq, seqlen));
+          return ESC;
+        }
+        }
+
+        /* int res = sscanf(mouse_seq, "%d %d %d %d", &state, &button, &x, &y);
+         */
+        /* if (res != 4) { */
+        /*   editor_set_status_msg( */
+        /*       "parse error %d %s | state: %d | button: %d | x: %d | y: %d",
+         * res, */
+        /*       mouse_seq, state, button, x, y); */
+        /*   return ESC; */
+        /* } else { */
+        /*   editor_set_status_msg( */
+        /*       "parse ok %d | state: %d | button: %d | x: %d | y: %d", res, */
+        /*       state, button, x, y); */
+        /* } */
+
+        /* switch (button) { */
+        /* case 0: */
+        /*   // scroll */
+        /*   switch (state) { */
+        /*   case 64: */
+        /*     return MOUSE_SCROLL_UP; */
+        /*   case 96: */
+        /*     return MOUSE_SCROLL_DOWN; */
+        /*   case 0: */
+        /*   default: */
+        /*     // no scroll */
+        /*     return ESC; */
+        /*   } */
+        /* } */
 
       } else {
         switch (seq[1]) {
@@ -1010,15 +1082,33 @@ void editor_init() {
   ec.statusmsg_time = 0;
   ec.syntax = NULL;
   editor_refresh_window_size();
+  editor_init_screen();
   editor_set_status_msg("Hit Ctrl-Q to quit & Ctrl-Q to save");
 }
 
+// TODO:
+// this doesnt work to offset render from term history
+void editor_init_screen() {
+  buffer ab = BUFFER_INIT;
+  for (int i = 0; i < ec.screenRows + 1; i++) {
+    if (write(STDOUT_FILENO, "\n", 1) != 1) {
+      DEBUG_PRINT("Error: editor_init_screen couldn't write the full buffer");
+    }
+  }
+  free_buffer(&ab);
+}
 void editor_paste() {
   char *t = clipboard_read();
   editor_set_status_msg(t);
   editor_row_insert_str(&ec.row[ec.cy], ec.cx, t, str_len(t));
 }
 
+void editor_exit() {
+  editor_free_current_buffer();
+  term_disable_mouse_reporting();
+  term_exit();
+  exit(0);
+}
 void editor_process_keypress() {
   int c = editor_read_key();
   /* editor_set_status_msg("Key %02x pressed", c); */
@@ -1063,8 +1153,7 @@ void editor_process_keypress() {
     break;
   case CTRL_KEY('q'):
     if (editor_confirm() == 1) {
-      term_clean();
-      exit(0);
+      editor_exit();
     }
     break;
   case MOVE_CURSOR_UP:
@@ -1086,6 +1175,14 @@ void editor_process_keypress() {
     break;
   }
   case PAGE_DOWN: {
+    editor_move_cursor(MOVE_CURSOR_DOWN, ec.rowOffset + ec.screenRows - 1);
+    break;
+  }
+  case MOUSE_SCROLL_UP: {
+    editor_move_cursor(MOVE_CURSOR_UP, ec.rowOffset + ec.screenRows - 1);
+    break;
+  }
+  case MOUSE_SCROLL_DOWN: {
     editor_move_cursor(MOVE_CURSOR_DOWN, ec.rowOffset + ec.screenRows - 1);
     break;
   }
