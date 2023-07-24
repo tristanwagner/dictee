@@ -138,8 +138,7 @@ void editor_search_prompt_callback(char *query, int c) {
     direction = 1;
 
   int current = last_match;
-  // search
-  // TODO: handle multiple results
+
   for (int i = 0; i < ec.numRows; i++) {
     current += direction;
     if (current == -1)
@@ -153,8 +152,10 @@ void editor_search_prompt_callback(char *query, int c) {
       last_match = ec.cy = current;
       int rx = match - row->render;
       ec.cx = editor_row_rx_to_cx(row, rx);
+      // if top of file
       // scroll bottom so result will be top of screen
-      ec.rowOffset = ec.numRows;
+      // else offset cursor by half screen
+      ec.rowOffset = ec.cy < ec.screenRows ? 0 : ec.cy - ec.screenRows / 2;
 
       saved_hl_line = current;
       saved_hl = malloc(row->rsize);
@@ -170,7 +171,7 @@ void editor_find() {
   // TODO:
   // enter search mode
   // make binds to navigate results
-  char *query = editor_prompt("Search: %s (ESC to cancel)",
+  char *query = editor_prompt("Search: %s (ESC to cancel/Arrows to navigate)",
                               editor_search_prompt_callback);
   if (query) {
     free(query);
@@ -185,7 +186,8 @@ int editor_save_file(const char *filename, char *buffer, long len) {
     if (ftruncate(fd, len) != -1) {
       if (write(fd, buffer, len) == len) {
         close(fd);
-        editor_set_status_msg("%d bytes writen to \"%s\"", len, filename);
+        editor_set_status_msg("save_file: %d bytes writen to \"%s\"", len,
+                              filename);
         return len;
       }
     }
@@ -796,6 +798,7 @@ void editor_scroll() {
 }
 
 void editor_refresh_screen() {
+  editor_refresh_window_size();
   editor_scroll();
   buffer ab = BUFFER_INIT;
 
@@ -881,9 +884,7 @@ int editor_read_key() {
         char mouse_seq[10];
         int i = 0;
         int state, button, x, y;
-        // parse response
-        /* \e[M96 0 16 9 */
-        /* \e[M <state> <button> <x> <y> */
+
         while (i < 9) {
           if (read(STDIN_FILENO, &mouse_seq[i], 1) != 1)
             break;
@@ -915,36 +916,6 @@ int editor_read_key() {
           return ESC;
         }
         }
-
-        /* int res = sscanf(mouse_seq, "%d %d %d %d", &state, &button, &x, &y);
-         */
-        /* if (res != 4) { */
-        /*   editor_set_status_msg( */
-        /*       "parse error %d %s | state: %d | button: %d | x: %d | y: %d",
-         * res, */
-        /*       mouse_seq, state, button, x, y); */
-        /*   return ESC; */
-        /* } else { */
-        /*   editor_set_status_msg( */
-        /*       "parse ok %d | state: %d | button: %d | x: %d | y: %d", res, */
-        /*       state, button, x, y); */
-        /* } */
-
-        /* switch (button) { */
-        /* case 0: */
-        /*   // scroll */
-        /*   switch (state) { */
-        /*   case 64: */
-        /*     return MOUSE_SCROLL_UP; */
-        /*   case 96: */
-        /*     return MOUSE_SCROLL_DOWN; */
-        /*   case 0: */
-        /*   default: */
-        /*     // no scroll */
-        /*     return ESC; */
-        /*   } */
-        /* } */
-
       } else {
         switch (seq[1]) {
         case 'A':
@@ -1179,11 +1150,11 @@ void editor_process_keypress() {
     break;
   }
   case MOUSE_SCROLL_UP: {
-    editor_move_cursor(MOVE_CURSOR_UP, ec.rowOffset + ec.screenRows - 1);
+    editor_move_cursor(MOVE_CURSOR_UP, 1);
     break;
   }
   case MOUSE_SCROLL_DOWN: {
-    editor_move_cursor(MOVE_CURSOR_DOWN, ec.rowOffset + ec.screenRows - 1);
+    editor_move_cursor(MOVE_CURSOR_DOWN, 1);
     break;
   }
   default:

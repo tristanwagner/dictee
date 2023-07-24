@@ -6,4 +6,4 @@ tags
 test.txt
 hello.txt
 *.dSYM/
-
+*.log
