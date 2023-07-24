@@ -272,6 +272,19 @@ void editor_row_insert_char(editor_row *row, int at, int c) {
   ec.dirty++;
 }
 
+void editor_row_insert_str(editor_row *row, int at, const char *str,
+                           size_t len) {
+  if (at < 0 || at > row->size || len < 1)
+    return;
+  row->chars = realloc(row->chars, row->size + len + 1);
+  row->size += len;
+  memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
+  memcpy(&row->chars[at], str, len);
+  row->chars[row->size + 1] = '\0';
+  editor_update_row(row);
+  ec.dirty++;
+}
+
 void editor_insert_char(int c) {
   if (ec.cy == ec.numRows) {
     editor_insert_row(ec.numRows, "", 0);
@@ -579,12 +592,11 @@ void editor_insert_row(int at, char *line, int linelen) {
   ec.dirty++;
 }
 
-void editor_row_append_string(editor_row *row, char *s, size_t len) {
-  if (len < 1 || row == NULL || s == NULL) {
+void editor_row_append_string(editor_row *row, const char *str, size_t len) {
+  if (len < 1 || row == NULL || str == NULL)
     return;
-  }
   row->chars = realloc(row->chars, row->size + len + 1);
-  memcpy(&row->chars[row->size], s, len);
+  memcpy(&row->chars[row->size], str, len);
   row->size += len;
   row->chars[row->size] = '\0';
   editor_update_row(row);
@@ -1001,9 +1013,15 @@ void editor_init() {
   editor_set_status_msg("Hit Ctrl-Q to quit & Ctrl-Q to save");
 }
 
+void editor_paste() {
+  char *t = clipboard_read();
+  editor_set_status_msg(t);
+  editor_row_insert_str(&ec.row[ec.cy], ec.cx, t, str_len(t));
+}
+
 void editor_process_keypress() {
   int c = editor_read_key();
-  editor_set_status_msg("Key %02x pressed", c);
+  /* editor_set_status_msg("Key %02x pressed", c); */
   switch (c) {
   case 0:
   case ESC:
@@ -1013,6 +1031,13 @@ void editor_process_keypress() {
     for (int i = 0; i < TAB_SIZE; i++) {
       editor_insert_char(SPACE);
     }
+    break;
+  case CTRL_KEY('v'):
+#ifdef PLATFORM_OSX
+    editor_paste();
+#else
+    editor_set_status_msg("TODO: clipboard windows/linux");
+#endif
     break;
   case CTRL_KEY('o'):
     editor_open();
@@ -1038,6 +1063,7 @@ void editor_process_keypress() {
     break;
   case CTRL_KEY('q'):
     if (editor_confirm() == 1) {
+      term_clean();
       exit(0);
     }
     break;

@@ -6,7 +6,6 @@ A simple minimalist text editor written in C heavily inspired by kilo
 
 ```bash
 make update-submodules
-make utils
 make
 ```
 

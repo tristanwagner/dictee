@@ -10,6 +10,10 @@
 #include <ctype.h>
 #include <time.h>
 
+// TODO:
+// - windows & linux compat
+// - export to utils package
+#include "clipboard.h"
 #include "include/utils/src/buffer.h"
 #include "include/utils/src/term.h"
 #include "include/utils/src/uerror.h"
@@ -114,7 +118,7 @@ void editor_row_delete_char(editor_row *row, int at);
 void editor_delete_char();
 void editor_set_status_msg(const char *fmt, ...);
 char *editor_rows_to_string(size_t *len);
-void editor_row_append_string(editor_row *row, char *s, size_t len);
+void editor_row_append_string(editor_row *row, const char *s, size_t len);
 void editor_move_cursor(int key, int times);
 void editor_row_insert_char(editor_row *row, int at, int c);
 int editor_row_cx_to_rx(editor_row *row, int cx);
