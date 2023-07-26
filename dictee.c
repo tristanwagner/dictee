@@ -1,7 +1,6 @@
 #include "editor.h"
 
 int main(int argc, char *argv[]) {
-  term_init();
   editor_init();
 
   if (argc >= 2) {

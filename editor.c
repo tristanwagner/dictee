@@ -1,4 +1,5 @@
 #include "editor.h"
+#include "include/utils/src/term.h"
 
 static editor_config ec = {0};
 
@@ -873,40 +874,33 @@ int editor_read_key() {
         }
 
       } else if (seq[1] == 'M') {
-        // This is a mouse event
+        // Handle mouse events
         char mouse_seq[10];
         int i = 0;
-        int state, button, x, y;
 
         while (i < 9) {
           if (read(STDIN_FILENO, &mouse_seq[i], 1) != 1)
             break;
           i++;
         }
+
         mouse_seq[i] = '\0';
-        int seqlen;
+        int seqlen = str_len(mouse_seq);
         switch (mouse_seq[0]) {
         case 0x61:
           return MOUSE_SCROLL_DOWN;
         case 0x60:
           return MOUSE_SCROLL_UP;
-        case 0x20:
-          seqlen = str_len(mouse_seq);
-          editor_set_status_msg("clic gauche pos (%d, %d) | len: %d | hex: %s",
-                                mouse_seq[1], mouse_seq[2], seqlen,
-                                str_to_hex(mouse_seq, seqlen));
-          // editor_move_cursor_to()
-          return ESC;
-        case 0x23:
-          editor_set_status_msg("clic gauche relaché pos (%d, %d)",
-                                mouse_seq[1], mouse_seq[2]);
-          // editor_move_cursor_to()
-          return ESC;
+          // left clic pressed
+          // case 0x20:
+          // left clic released
+          // case 0x23:
         default: {
-          seqlen = str_len(mouse_seq);
-          editor_set_status_msg("mouse sequence len %d | hex: %s", seqlen,
-                                str_to_hex(mouse_seq, seqlen));
-          return ESC;
+          editor_set_status_msg(
+              "unsupported mouse sequence => len: %d | hex: %s", seqlen,
+
+              str_to_hex(mouse_seq, seqlen));
+          return 0;
         }
         }
       } else {
@@ -1034,6 +1028,9 @@ void editor_free_current_buffer() {
 }
 
 void editor_init() {
+  term_init();
+  term_enable_raw_mode();
+  term_enable_mouse_reporting();
   ec.cx = 0;
   ec.cy = 0;
   ec.rx = 0;
@@ -1068,7 +1065,8 @@ void editor_paste() {
 void editor_exit() {
   editor_free_current_buffer();
   term_disable_mouse_reporting();
-  term_exit();
+  term_clean();
+  term_move_cursor_to_origin();
   exit(0);
 }
 void editor_process_keypress() {

@@ -1,0 +1,20 @@
+{
+  "configurations": {
+    "C - Launch LLDB": {
+      "adapter": "CodeLLDB",
+      "filetype": ["ccp", "c", "rust"],
+      "configuration": {
+        "request": "launch",
+        "program": "${fileDirname}/${fileBasenameNoExtension}_dbg"
+      }
+    },
+    "C - Attach LLDB": {
+      "adapter": "CodeLLDB",
+      "configuration": {
+        "request": "attach",
+        "program": "${fileDirname}/${fileBasenameNoExtension}_dbg",
+        "pid": "${PickProcess(\"${fileBasenameNoExtension}_dbg\")}"
+      }
+    }
+  }
+}
