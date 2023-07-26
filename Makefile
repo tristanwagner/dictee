@@ -23,16 +23,16 @@ dictee: dictee.c editor.c
 dictee_dbg: dictee.c editor.c
 	$(CC) $(FLAGS) -g -o dictee_dbg $^ -L$(UTILS_PATH) -lutils
 
-dictee_osx: dictee.c editor.c clipboard.m
+dictee_osx: dictee.c editor.c
 	$(CC) $(FLAGS_OSX) -o dictee $^ -L$(UTILS_PATH) -lutils
 
-dictee_dbg_osx: dictee.c editor.c clipboard.m
+dictee_dbg_osx: dictee.c editor.c
 	$(CC) $(FLAGS_OSX) -g -o dictee_dbg $^ -L$(UTILS_PATH) -lutils
 
 update-submodules:
 	git submodule update --remote --recursive
 
-libutils.a: $(UTILS_PATH)/src/*
+libutils.a:
 	$(MAKE) libutils.a -C $(UTILS_PATH)
 
 # using the shared/dynamic lib utils
@@ -40,7 +40,7 @@ libutils.a: $(UTILS_PATH)/src/*
 dictee_shared: dictee.c editor.c
 	$(CC) $(FLAGS) -o dictee_shared $^ -L$(UTILS_PATH) -lutils
 
-dictee_shared_osx: dictee.c editor.c clipboard.m
+dictee_shared_osx: dictee.c editor.c
 	$(CC) $(FLAGS_OSX) -o dictee_shared $^ -L$(UTILS_PATH) -lutils
 	install_name_tool -change libutils.so @executable_path/include/utils/libutils.so $@
 
@@ -50,3 +50,6 @@ libutils.so: $(UTILS_PATH)/src/*
 clean:
 	rm -f $(BINS) $(OBJS)
 	$(MAKE) clean -C $(UTILS_PATH)
+
+%.m.o: %.m
+	$(CC) -c $< -o $@

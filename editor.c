@@ -1,5 +1,4 @@
 #include "editor.h"
-#include "include/utils/src/term.h"
 
 static editor_config ec = {0};
 
@@ -533,11 +532,19 @@ void editor_select_filetype_syntax() {
 }
 
 void editor_update_row(editor_row *row) {
-  int j, tabs = 0;
+  int j, nl = 0, tabs = 0;
 
   for (j = 0; j < row->size; j++) {
     if (row->chars[j] == '\t')
       tabs++;
+    if (row->chars[j] == '\n')
+      nl++;
+  }
+
+  if (nl > 0) {
+    // TODO:
+    // add new rows and split current one
+    editor_set_status_msg("TODO: split newlines: %d counted", nl);
   }
 
   if (row->render != NULL)
@@ -627,9 +634,8 @@ void editor_open_file(char *filename) {
   if (!fp) {
     editor_set_status_msg("Error: File \"%s\" not found", filename);
     return;
-  } else {
-    editor_free_current_buffer();
   }
+  editor_free_current_buffer();
 
   ec.filename = strdup(filename);
   editor_select_filetype_syntax();
@@ -1014,6 +1020,7 @@ void editor_free_current_buffer() {
   ec.cx = 0;
   ec.cy = 0;
   ec.rx = 0;
+  ec.numRows = 0;
   ec.rowOffset = 0;
   ec.colOffset = 0;
   ec.dirty = 0;
@@ -1024,24 +1031,18 @@ void editor_free_current_buffer() {
     free(ec.row);
   }
   ec.row = NULL;
-  ec.numRows = 0;
+  ec.statusmsg[0] = '\0';
+  ec.statusmsg_time = 0;
+  ec.syntax = NULL;
+  if (ec.filename != NULL)
+    free(ec.filename);
 }
 
 void editor_init() {
   term_init();
   term_enable_raw_mode();
   term_enable_mouse_reporting();
-  ec.cx = 0;
-  ec.cy = 0;
-  ec.rx = 0;
-  ec.numRows = 0;
-  ec.rowOffset = 0;
-  ec.colOffset = 0;
-  ec.dirty = 0;
-  ec.filename = NULL;
-  ec.statusmsg[0] = '\0';
-  ec.statusmsg_time = 0;
-  ec.syntax = NULL;
+  editor_free_current_buffer();
   editor_refresh_window_size();
   editor_init_screen();
   editor_set_status_msg("Hit Ctrl-Q to quit & Ctrl-Q to save");
@@ -1058,8 +1059,12 @@ void editor_init_screen() {
 }
 void editor_paste() {
   char *t = clipboard_read();
-  editor_set_status_msg(t);
+  if (ec.numRows == 0) {
+    editor_insert_row(0, "", 0);
+  }
   editor_row_insert_str(&ec.row[ec.cy], ec.cx, t, str_len(t));
+  // TODO:
+  // move cursor at end of paste
 }
 
 void editor_exit() {

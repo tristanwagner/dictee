@@ -12,7 +12,7 @@
 // TODO:
 // - windows & linux compat
 // - export to utils package
-#include "clipboard.h"
+#include "include/utils/src/clipboard.h"
 #include "include/utils/src/buffer.h"
 #include "include/utils/src/math.h"
 #include "include/utils/src/term.h"
