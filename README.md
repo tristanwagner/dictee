@@ -42,6 +42,7 @@ redirect stderr to `error.log`
 - select mechanism
 - copy
 - handle multiple buffers/files
+- undo/redo
 
 ## Sources
 

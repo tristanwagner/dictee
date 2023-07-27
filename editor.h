@@ -123,6 +123,7 @@ void editor_delete_char();
 void editor_set_status_msg(const char *fmt, ...);
 char *editor_rows_to_string(size_t *len);
 void editor_row_append_string(editor_row *row, const char *s, size_t len);
+void editor_move_cursor_to(unsigned char x, unsigned char y);
 void editor_move_cursor(int key, int times);
 void editor_row_insert_char(editor_row *row, int at, int c);
 void editor_row_insert_str(editor_row *row, int at, const char *str, size_t len);

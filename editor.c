@@ -668,7 +668,8 @@ void editor_draw_rows(buffer *ab) {
   for (y = 0; y < ec.screenRows; y++) {
     int fileRow = y + ec.rowOffset;
     if (fileRow >= ec.numRows) {
-      if (ec.numRows == 0 && y == ec.screenRows / 3) {
+      // draw editor starting screen
+      if (ec.numRows == 0 && y == (ec.screenRows / 2) - 2) {
         char message[64];
         int messageLen =
             snprintf(message, sizeof(message), "Dictée - version %s", VERSION);
@@ -820,7 +821,7 @@ void editor_refresh_screen() {
   char buf[32];
   snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (ec.cy - ec.rowOffset) + 1,
            (ec.rx - ec.colOffset) + 1);
-  buffer_append(&ab, buf, strlen(buf));
+  buffer_append(&ab, buf, str_len(buf));
 
   // show cursor
   buffer_append(&ab, "\x1b[?25h", 6);
@@ -883,6 +884,7 @@ int editor_read_key() {
         // Handle mouse events
         char mouse_seq[10];
         int i = 0;
+        unsigned char btn, x, y;
 
         while (i < 9) {
           if (read(STDIN_FILENO, &mouse_seq[i], 1) != 1)
@@ -892,20 +894,33 @@ int editor_read_key() {
 
         mouse_seq[i] = '\0';
         int seqlen = str_len(mouse_seq);
+
+        // unsupported
+        if (i < 3) {
+          return 0;
+        }
+
+        btn = (unsigned char)mouse_seq[0];
+        x = (unsigned char)mouse_seq[1] - 0x21;
+        y = (unsigned char)mouse_seq[2] - 0x21;
+
         switch (mouse_seq[0]) {
         case 0x61:
           return MOUSE_SCROLL_DOWN;
         case 0x60:
           return MOUSE_SCROLL_UP;
-          // left clic pressed
-          // case 0x20:
-          // left clic released
-          // case 0x23:
+        // left clic pressed
+        case 0x20: {
+          editor_move_cursor_to(x, y);
+          return 0;
+        }
+        // right click pressed
+        case 0x22:
+          return 0;
+        // clic released
+        case 0x23:
+          return 0;
         default: {
-          editor_set_status_msg(
-              "unsupported mouse sequence => len: %d | hex: %s", seqlen,
-
-              str_to_hex(mouse_seq, seqlen));
           return 0;
         }
         }
@@ -959,6 +974,13 @@ int editor_read_key() {
 #endif
     return c;
   }
+}
+
+void editor_move_cursor_to(unsigned char x, unsigned char y) {
+  if (y >= 0 && y + ec.rowOffset < ec.numRows) {
+    ec.cy = y + ec.rowOffset;
+  }
+  ec.cx = IMIN(x, ec.row[ec.cy].rsize);
 }
 
 void editor_move_cursor(int key, int times) {
