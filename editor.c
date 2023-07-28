@@ -246,21 +246,6 @@ char *editor_rows_to_string(size_t *buflen) {
   return buf;
 }
 
-void editor_insert_newline() {
-  if (ec.cx == 0) {
-    editor_insert_row(ec.cy, "", 0);
-  } else {
-    editor_row *row = &ec.row[ec.cy];
-    editor_insert_row(ec.cy + 1, &row->chars[ec.cx], row->size - ec.cx);
-    row = &ec.row[ec.cy];
-    row->size = ec.cx;
-    row->chars[row->size] = '\0';
-    editor_update_row(row);
-  }
-  ec.cy++;
-  ec.cx = 0;
-}
-
 void editor_row_insert_char(editor_row *row, int at, int c) {
   if (at < 0 || at > row->size)
     at = row->size;
@@ -272,28 +257,30 @@ void editor_row_insert_char(editor_row *row, int at, int c) {
   ec.dirty++;
 }
 
-void editor_row_insert_str(editor_row *row, int at, const char *str,
-                           size_t len) {
-  if (at < 0 || at > row->size || len < 1)
-    return;
-  row->chars = realloc(row->chars, row->size + len + 1);
-  row->size += len;
-  memmove(&row->chars[at + 1], &row->chars[at], row->size - at + 1);
-  memcpy(&row->chars[at], str, len);
-  row->chars[row->size + 1] = '\0';
-  editor_update_row(row);
-  ec.dirty++;
-}
-
 void editor_insert_char(int c) {
   if (ec.cy == ec.numRows) {
     editor_insert_row(ec.numRows, "", 0);
   }
-  int len = ec.row[ec.cy].rsize;
-
-  editor_row_insert_char(&ec.row[ec.cy], ec.cx, c);
-  int offset = ec.row[ec.cy].rsize - len;
-  ec.cx += offset >= 0 ? offset : 0;
+  // insert new line
+  if (c == '\r' || c == '\n') {
+    if (ec.cx == 0) {
+      editor_insert_row(ec.cy, "", 0);
+    } else {
+      editor_row *row = &ec.row[ec.cy];
+      editor_insert_row(ec.cy + 1, &row->chars[ec.cx], row->size - ec.cx);
+      row = &ec.row[ec.cy];
+      row->size = ec.cx;
+      row->chars[row->size] = '\0';
+      editor_update_row(row);
+    }
+    ec.cy++;
+    ec.cx = 0;
+  } else {
+    int len = ec.row[ec.cy].rsize;
+    editor_row_insert_char(&ec.row[ec.cy], ec.cx, c);
+    int offset = ec.row[ec.cy].rsize - len;
+    ec.cx += offset >= 0 ? offset : 0;
+  }
 }
 
 void editor_row_delete_char(editor_row *row, int at) {
@@ -537,14 +524,6 @@ void editor_update_row(editor_row *row) {
   for (j = 0; j < row->size; j++) {
     if (row->chars[j] == '\t')
       tabs++;
-    if (row->chars[j] == '\n')
-      nl++;
-  }
-
-  if (nl > 0) {
-    // TODO:
-    // add new rows and split current one
-    editor_set_status_msg("TODO: split newlines: %d counted", nl);
   }
 
   if (row->render != NULL)
@@ -1081,12 +1060,14 @@ void editor_init_screen() {
 }
 void editor_paste() {
   char *t = clipboard_read();
-  if (ec.numRows == 0) {
-    editor_insert_row(0, "", 0);
+  int len = str_len(t);
+  int i = 0;
+
+  while (i < len) {
+    editor_insert_char(t[i]);
+    i++;
   }
-  editor_row_insert_str(&ec.row[ec.cy], ec.cx, t, str_len(t));
-  // TODO:
-  // move cursor at end of paste
+  ec.dirty++;
 }
 
 void editor_exit() {
@@ -1137,9 +1118,6 @@ void editor_process_keypress() {
   case CTRL_KEY(BACKSPACE):
     // TODO delete to start of line or delete line
     break;
-  case '\r':
-    editor_insert_newline();
-    break;
   case BACKSPACE:
   case DEL_KEY:
   case CTRL_KEY('h'):
@@ -1183,9 +1161,7 @@ void editor_process_keypress() {
     break;
   }
   default:
-    if (c >= 0x20) {
-      editor_insert_char(c);
-    }
+    editor_insert_char(c);
     break;
   }
 }

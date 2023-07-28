@@ -5,15 +5,15 @@
       "filetype": ["ccp", "c", "rust"],
       "configuration": {
         "request": "launch",
-        "program": "${fileDirname}/${fileBasenameNoExtension}_dbg"
+        "program": "${fileDirname}/dictee_dbg"
       }
     },
     "C - Attach LLDB": {
       "adapter": "CodeLLDB",
       "configuration": {
         "request": "attach",
-        "program": "${fileDirname}/${fileBasenameNoExtension}_dbg",
-        "pid": "${PickProcess(\"${fileBasenameNoExtension}_dbg\")}"
+        "program": "${fileDirname}/dictee_dbg",
+        "pid": "${PickProcess(\"dictee_dbg\")}"
       }
     }
   }

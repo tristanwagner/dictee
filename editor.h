@@ -11,7 +11,6 @@
 
 // TODO:
 // - windows & linux compat
-// - export to utils package
 #include "include/utils/src/clipboard.h"
 #include "include/utils/src/buffer.h"
 #include "include/utils/src/math.h"
@@ -105,43 +104,41 @@ typedef struct {
   editor_syntax *syntax;
 } editor_config;
 
+void editor_init();
+void editor_init_screen();
+void editor_open();
+void editor_open_file(char *filename);
+void editor_save();
+int editor_save_file(const char *filename, char *buffer, ssize_t len);
+void editor_delete_char();
+void editor_refresh_screen();
+void editor_refresh_window_size();
+void editor_process_keypress();
+void editor_paste();
+void editor_exit();
+void editor_free_current_buffer();
+char *editor_prompt(char *prompt, void (*callback)(char *, int));
+int editor_confirm();
+void editor_set_status_msg(const char *fmt, ...);
 void editor_save_cursor_position();
 void editor_restore_cursor_position();
 int editor_read_key();
+void editor_select_filetype_syntax();
 void editor_update_syntax();
 void editor_row_update_syntax(editor_row *row);
 int editor_syntax_to_color(int hl);
-void editor_select_filetype_syntax();
 void editor_update_row(editor_row *row);
 void editor_insert_row(int at, char *line, int linelen);
 void editor_delete_row(int at);
-void editor_free_row(editor_row *row);
-void editor_insert_char(int c);
-void editor_insert_newline();
 void editor_row_delete_char(editor_row *row, int at);
-void editor_delete_char();
-void editor_set_status_msg(const char *fmt, ...);
-char *editor_rows_to_string(size_t *len);
-void editor_row_append_string(editor_row *row, const char *s, size_t len);
-void editor_move_cursor_to(unsigned char x, unsigned char y);
-void editor_move_cursor(int key, int times);
+void editor_insert_char(int c);
 void editor_row_insert_char(editor_row *row, int at, int c);
-void editor_row_insert_str(editor_row *row, int at, const char *str, size_t len);
+void editor_row_append_string(editor_row *row, const char *s, size_t len);
+char *editor_rows_to_string(size_t *len);
 int editor_row_cx_to_rx(editor_row *row, int cx);
 int editor_row_rx_to_cx(editor_row *row, int rx);
-int editor_save_file(const char *filename, char *buffer, ssize_t len);
-void editor_save();
-int editor_confirm();
-void editor_refresh_screen();
-void editor_init();
-void editor_init_screen();
-void editor_open_file(char *filename);
-void editor_open();
-void editor_free_current_buffer();
-void editor_refresh_window_size();
-void editor_process_keypress();
-char *editor_prompt(char *prompt, void (*callback)(char *, int));
-void editor_paste();
-void editor_exit();
+void editor_free_row(editor_row *row);
+void editor_move_cursor_to(unsigned char x, unsigned char y);
+void editor_move_cursor(int key, int times);
 
 #endif
