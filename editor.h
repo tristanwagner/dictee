@@ -11,13 +11,7 @@
 
 // TODO:
 // - windows & linux compat
-#include "include/utils/src/clipboard.h"
-#include "include/utils/src/buffer.h"
-#include "include/utils/src/math.h"
-#include "include/utils/src/term.h"
-#include "include/utils/src/uerror.h"
-#include "include/utils/src/ustring.h"
-#include "include/utils/src/debug.h"
+#include "libutils.h"
 
 #define CTRL_KEY(k) ((k)&0x1F)
 

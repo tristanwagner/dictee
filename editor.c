@@ -1058,6 +1058,7 @@ void editor_init_screen() {
   }
   free_buffer(&ab);
 }
+
 void editor_paste() {
   char *t = clipboard_read();
   int len = str_len(t);
@@ -1077,6 +1078,7 @@ void editor_exit() {
   term_move_cursor_to_origin();
   exit(0);
 }
+
 void editor_process_keypress() {
   int c = editor_read_key();
   /* editor_set_status_msg("Key %02x pressed", c); */
