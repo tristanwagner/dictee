@@ -7,3 +7,5 @@ test.txt
 hello.txt
 *.dSYM/
 *.log
+*.dylib
+*.so
